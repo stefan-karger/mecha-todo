@@ -1,13 +1,21 @@
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import { DATABASE_NAME } from "../config/product";
 import { activeCapacity } from "../domain/capacity";
+import {
+  localCalendarDate,
+  previousDayKey,
+  toDayKey,
+  type LocalCalendarDate,
+} from "../domain/day-key";
 import { progressionForTotalXp, type Progression } from "../domain/progression";
 import { rankForLevel } from "../domain/ranks";
+import { calculateCompletionAward } from "../domain/rewards";
 import { createTodoId, normalizeTodoText, type InvalidTodoText } from "../domain/todo-text";
 import { openVersionedDatabase } from "./db";
 import type { MechaTodoDatabase } from "./db-schema";
 import type {
   CoreMetaRecord,
+  CompletionAwardRecord,
   DerivedStatsMetaRecord,
   TodoRecord,
   TodoStatus,
@@ -65,29 +73,53 @@ export type MutationSuccess = Readonly<{
   projection: AppProjection;
 }>;
 
+type ValidationFailure = Readonly<{
+  ok: false;
+  category: "validation";
+  validation: InvalidTodoText;
+}>;
+
+type ChangedInAnotherTabFailure = Readonly<{
+  ok: false;
+  category: "changed-in-another-tab";
+  message: typeof LIST_CHANGED_MESSAGE;
+}>;
+
+type WriteFailure = Readonly<{
+  ok: false;
+  category: "write-failed";
+  message: "Task could not be saved. Retry.";
+}>;
+
 export type MutationResult =
   | MutationSuccess
-  | Readonly<{
-      ok: false;
-      category: "validation";
-      validation: InvalidTodoText;
-    }>
-  | Readonly<{
-      ok: false;
-      category: "changed-in-another-tab";
-      message: typeof LIST_CHANGED_MESSAGE;
-    }>
-  | Readonly<{
-      ok: false;
-      category: "write-failed";
-      message: "Task could not be saved. Retry.";
-    }>;
+  | ValidationFailure
+  | ChangedInAnotherTabFailure
+  | WriteFailure;
+
+export type CompletionMutationSuccess = Readonly<{
+  ok: true;
+  action: "completed" | "reopened";
+  changed: boolean;
+  todo: TodoRecord;
+  award: CompletionAwardRecord | null;
+  xpGained: number;
+  alreadyCredited: boolean;
+  promotedTodoIds: string[];
+  projection: AppProjection;
+}>;
+
+export type CompletionMutationResult =
+  | CompletionMutationSuccess
+  | ChangedInAnotherTabFailure
+  | WriteFailure;
 
 export interface AppRepository {
   initialize(): Promise<StartupResult>;
   getProjection(query?: ProjectionQuery): Promise<AppProjection>;
   addTodo(text: string): Promise<MutationResult>;
   editTodo(id: string, text: string): Promise<MutationResult>;
+  setTodoCompleted(id: string, completed: boolean): Promise<CompletionMutationResult>;
   close(): void;
 }
 
@@ -95,7 +127,10 @@ type RepositoryOptions = Readonly<{
   databaseName?: string;
   clock?: () => number;
   idFactory?: () => string;
+  calendar?: (timestamp: number) => LocalCalendarDate;
 }>;
+
+type CommittedCompletionMutation = Omit<CompletionMutationSuccess, "projection">;
 
 type ProjectionTransaction = IDBPTransaction<
   MechaTodoDatabase,
@@ -107,16 +142,19 @@ export class IndexedDbAppRepository implements AppRepository {
   readonly #databaseName: string;
   readonly #clock: () => number;
   readonly #idFactory: () => string;
+  readonly #calendar: (timestamp: number) => LocalCalendarDate;
   #database: IDBPDatabase<MechaTodoDatabase> | null = null;
 
   constructor({
     databaseName = DATABASE_NAME,
     clock = Date.now,
     idFactory = createTodoId,
+    calendar = (timestamp) => localCalendarDate(new Date(timestamp)),
   }: RepositoryOptions = {}) {
     this.#databaseName = databaseName;
     this.#clock = clock;
     this.#idFactory = idFactory;
+    this.#calendar = calendar;
   }
 
   async initialize(): Promise<StartupResult> {
@@ -267,9 +305,196 @@ export class IndexedDbAppRepository implements AppRepository {
     }
   }
 
+  async setTodoCompleted(id: string, completed: boolean): Promise<CompletionMutationResult> {
+    const maximumAttempts = 3;
+
+    for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+      try {
+        const committed = await this.#commitCompletionMutation(id, completed);
+        if (!committed.ok) {
+          return committed;
+        }
+
+        return { ...committed, projection: await this.getProjection() };
+      } catch (error) {
+        if (isConstraintError(error) && attempt < maximumAttempts) {
+          continue;
+        }
+        return writeFailed();
+      }
+    }
+
+    return writeFailed();
+  }
+
   close(): void {
     this.#database?.close();
     this.#database = null;
+  }
+
+  async #commitCompletionMutation(
+    id: string,
+    completed: boolean,
+  ): Promise<CommittedCompletionMutation | ChangedInAnotherTabFailure> {
+    const database = this.#requireDatabase();
+    const transaction = database.transaction(
+      ["todos", "completionAwards", "meta"],
+      "readwrite",
+    );
+    void transaction.done.catch(() => undefined);
+    const todos = transaction.objectStore("todos");
+    const awards = transaction.objectStore("completionAwards");
+    const meta = transaction.objectStore("meta");
+    const current = await todos.get(id);
+
+    if (!current) {
+      await transaction.done;
+      return changedInAnotherTab();
+    }
+
+    if (!completed) {
+      if (current.status !== "completed") {
+        await transaction.done;
+        return {
+          ok: true,
+          action: "reopened",
+          changed: false,
+          todo: current,
+          award: null,
+          xpGained: 0,
+          alreadyCredited: false,
+          promotedTodoIds: [],
+        };
+      }
+
+      const retainedAward = await awards.get(id);
+      if (!retainedAward) {
+        await transaction.done;
+        return changedInAnotherTab();
+      }
+
+      const timestamp = this.#clock();
+      const reopened: TodoRecord = {
+        ...current,
+        status: "active",
+        completionOrder: null,
+        updatedAt: timestamp,
+        completedAt: null,
+      };
+      await todos.put(reopened);
+      await transaction.done;
+
+      return {
+        ok: true,
+        action: "reopened",
+        changed: true,
+        todo: reopened,
+        award: null,
+        xpGained: 0,
+        alreadyCredited: false,
+        promotedTodoIds: [],
+      };
+    }
+
+    const existingAward = await awards.get(id);
+    if (current.status === "completed") {
+      if (!existingAward) {
+        await transaction.done;
+        return changedInAnotherTab();
+      }
+
+      await transaction.done;
+      return {
+        ok: true,
+        action: "completed",
+        changed: false,
+        todo: current,
+        award: null,
+        xpGained: 0,
+        alreadyCredited: true,
+        promotedTodoIds: [],
+      };
+    }
+
+    const [core, stats] = await Promise.all([
+      meta.get("core"),
+      meta.get("derived-stats"),
+    ]);
+    if (!core || core.key !== "core" || !stats || stats.key !== "derived-stats") {
+      await transaction.done;
+      return changedInAnotherTab();
+    }
+
+    const timestamp = this.#clock();
+    let newAward: CompletionAwardRecord | null = null;
+    let lifetimeXp = stats.lifetimeXp;
+    let awardCount = stats.awardCount;
+
+    if (!existingAward) {
+      const calendarDate = this.#calendar(timestamp);
+      const currentDayKey = toDayKey(calendarDate);
+      const awardIndex = awards.index("by-day-key");
+      const [todayAwards, yesterdayAward] = await Promise.all([
+        awardIndex.getAll(currentDayKey),
+        awardIndex.get(previousDayKey(calendarDate)),
+      ]);
+      newAward = calculateCompletionAward({
+        todoId: id,
+        awardedAt: timestamp,
+        localDate: calendarDate,
+        existingAwards: yesterdayAward ? [...todayAwards, yesterdayAward] : todayAwards,
+      });
+      await awards.add(newAward);
+      lifetimeXp += newAward.totalXp;
+      awardCount += 1;
+    }
+
+    const completedTodo: TodoRecord = {
+      ...current,
+      status: "completed",
+      completionOrder: core.nextCompletionOrder,
+      updatedAt: timestamp,
+      completedAt: timestamp,
+    };
+    await todos.put(completedTodo);
+
+    const capacity = activeCapacity(progressionForTotalXp(lifetimeXp).level);
+    const activeCount = await todos
+      .index("by-status-creation-order")
+      .count(statusRange("active"));
+    const availableSlots = Math.max(0, capacity - activeCount);
+    const promotedTodoIds: string[] = [];
+    let standbyCursor = await todos
+      .index("by-status-creation-order")
+      .openCursor(statusRange("standby"), "next");
+
+    while (standbyCursor && promotedTodoIds.length < availableSlots) {
+      const promoted: TodoRecord = {
+        ...standbyCursor.value,
+        status: "active",
+        updatedAt: timestamp,
+      };
+      await standbyCursor.update(promoted);
+      promotedTodoIds.push(promoted.id);
+      standbyCursor = await standbyCursor.continue();
+    }
+
+    await Promise.all([
+      meta.put({ ...core, nextCompletionOrder: core.nextCompletionOrder + 1 }),
+      meta.put({ key: "derived-stats", lifetimeXp, awardCount }),
+    ]);
+    await transaction.done;
+
+    return {
+      ok: true,
+      action: "completed",
+      changed: true,
+      todo: completedTodo,
+      award: newAward,
+      xpGained: newAward?.totalXp ?? 0,
+      alreadyCredited: existingAward !== undefined,
+      promotedTodoIds,
+    };
   }
 
   async #rebuildMetadata(records: {
@@ -382,7 +607,7 @@ function nextOrder(orders: readonly number[]): number {
   return orders.reduce((highest, order) => Math.max(highest, order), -1) + 1;
 }
 
-function changedInAnotherTab(): MutationResult {
+function changedInAnotherTab(): ChangedInAnotherTabFailure {
   return {
     ok: false,
     category: "changed-in-another-tab",
@@ -390,6 +615,10 @@ function changedInAnotherTab(): MutationResult {
   };
 }
 
-function writeFailed(): MutationResult {
+function writeFailed(): WriteFailure {
   return { ok: false, category: "write-failed", message: "Task could not be saved. Retry." };
+}
+
+function isConstraintError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "ConstraintError";
 }
