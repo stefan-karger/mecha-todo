@@ -18,7 +18,7 @@ The planned interface draws from late-1990s mecha command systems while using or
 
 ## Project status
 
-MECHA//TODO is in the specification and ticket-writing phase. The repository currently contains the approved V1 implementation plan, earlier product handoff material, and visual assets. Application code has not been scaffolded yet.
+MECHA//TODO V1 is under implementation. The repository contains the approved V1 implementation plan, local implementation tickets, the application scaffold, and visual assets.
 
 The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and engineering contract. It takes precedence over the earlier [product handoff](docs/MECHA_TODO_IDEA_V4.md) where the two differ.
 
@@ -54,6 +54,19 @@ The interaction design may be described as ADHD-friendly or ADHD-oriented. The p
 
 ## Development
 
-Setup and development commands will be added after the application scaffold exists.
+Use Node.js 24.15.0 and npm 11.12.1.
+
+```sh
+npm install
+npm run dev
+```
+
+Run the current verification commands with:
+
+```sh
+npm run typecheck
+npm run build
+npm run test:smoke
+```
 
 Implementation tickets live as local Markdown files under `.scratch/`. This repository does not use an external issue tracker for specifications or implementation work.

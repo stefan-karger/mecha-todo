@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+
+:root {
+  font-family: "JetBrains Mono Variable", "Cascadia Code", ui-monospace, monospace;
+  color: #f5f1f8;
+  background: #09070d;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #09070d;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background: #09070d;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid #b86cff;
+  outline-offset: 3px;
+}
+
+.app-shell {
+  width: min(100%, 680px);
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: clamp(20px, 6vw, 48px) clamp(16px, 5vw, 32px);
+}
+
+.command-header {
+  position: relative;
+  padding: 18px 0 22px 18px;
+  border-top: 2px solid #b86cff;
+  border-bottom: 1px solid #4a355b;
+}
+
+.command-header::before {
+  position: absolute;
+  top: 18px;
+  bottom: 22px;
+  left: 0;
+  width: 4px;
+  background: #b86cff;
+  content: "";
+}
+
+.system-label {
+  margin: 0 0 8px;
+  color: #b7a9c2;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin: 0;
+  color: #f5f1f8;
+  font-size: clamp(1.75rem, 7vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.storage-note {
+  max-width: 60ch;
+  margin: 14px 0 0;
+  color: #b7a9c2;
+  font-size: 0.875rem;
+  font-weight: 450;
+  line-height: 1.375rem;
+}
+
+.task-surface {
+  padding-top: 28px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #4a355b;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.375rem;
+}
+
+.section-heading span {
+  color: #b86cff;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.25rem;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 24px 0;
+  color: #b7a9c2;
+  font-size: 0.9375rem;
+  font-weight: 450;
+  line-height: 1.375rem;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    padding-top: 64px;
+  }
+}
+
+@media (forced-colors: active) {
+  .command-header,
+  .section-heading {
+    border-color: CanvasText;
+  }
+
+  .command-header::before {
+    background: Highlight;
+  }
+}
