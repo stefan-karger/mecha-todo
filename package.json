@@ -12,6 +12,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:domain": "playwright test tests/domain",
     "test:smoke": "playwright test tests/e2e/shell.spec.ts"
   },
   "dependencies": {
