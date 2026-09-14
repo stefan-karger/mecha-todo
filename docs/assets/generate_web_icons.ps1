@@ -11,9 +11,7 @@ if (-not (Get-Command magick -ErrorAction SilentlyContinue)) {
 
 $sourcePath = (Resolve-Path -LiteralPath $SourceSvg).Path
 $publicPath = [System.IO.Path]::GetFullPath($PublicDir)
-$iconsPath = Join-Path $publicPath 'icons'
 
-New-Item -ItemType Directory -Force -Path $iconsPath | Out-Null
 Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $publicPath 'favicon.svg') -Force
 
 function Invoke-Magick {
@@ -80,11 +78,5 @@ Invoke-Magick @(
 )
 
 New-BackgroundIcon -Size 180 -LogoSize 148 -OutputPath (Join-Path $publicPath 'apple-touch-icon.png')
-
-foreach ($size in 192, 512) {
-    New-TransparentIcon -Size $size -OutputPath (Join-Path $iconsPath "pwa-${size}x${size}.png")
-    $safeLogoSize = [Math]::Floor($size * 0.64)
-    New-BackgroundIcon -Size $size -LogoSize $safeLogoSize -OutputPath (Join-Path $iconsPath "pwa-maskable-${size}x${size}.png")
-}
 
 Write-Host "Generated web icons in $publicPath"

@@ -5,7 +5,7 @@
 <h1 align="center">MECHA//TODO</h1>
 
 <p align="center">
-  An ADHD-friendly, local-first todo PWA with lightweight XP, ranks, and pixel badges.
+  An ADHD-friendly, browser-local todo web app with lightweight XP, ranks, and pixel badges.
 </p>
 
 ## About
@@ -28,10 +28,10 @@ The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and eng
 - Keep a focused Active Bay with overflow in a Standby queue.
 - Award XP only on a todo's first completion.
 - Track levels, procedural ranks, and deterministic pixel badges.
-- Store all user data locally in IndexedDB with no account or cloud sync.
-- Work as a normal website and as an installable, offline-ready PWA.
-- Support portable JSON backups, strict restore validation, and recovery tools.
-- Provide keyboard, touch, swipe, reduced-motion, and forced-colors support.
+- Store todos and progression locally in IndexedDB with no account or cloud sync.
+- Fit mobile, tablet, and desktop screens through one responsive task-first layout.
+- Report local-data failures without silently deleting or replacing stored data.
+- Provide visible keyboard, touch, and mouse controls with reduced-motion and forced-colors support.
 
 ## Planned stack
 
@@ -46,7 +46,9 @@ The implementation plan pins the initial dependency versions and defines the com
 
 ## Product boundaries
 
-V1 has one local user per browser profile and origin. It has no backend, authentication, analytics, telemetry, advertising, or third-party runtime requests. Separate devices do not sync. Users can move data between installations with JSON backups.
+V1 has one local user per browser profile and website origin. It has no backend, authentication, analytics, telemetry, advertising, or third-party runtime requests. It also has no PWA installation, offline guarantee, import, export, backup, or synchronization.
+
+Data cannot move between browsers, profiles, devices, or website addresses in V1. Clearing site data, losing the profile or device, or changing the production address may permanently remove the list. A future specification may add login and make Turso authoritative.
 
 The interaction design may be described as ADHD-friendly or ADHD-oriented. The project does not claim to treat ADHD or provide a clinical benefit.
 
