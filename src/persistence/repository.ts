@@ -114,12 +114,27 @@ export type CompletionMutationResult =
   | ChangedInAnotherTabFailure
   | WriteFailure;
 
+export type DeleteMutationSuccess = Readonly<{
+  ok: true;
+  deletedTodo: TodoRecord;
+  retainedAward: boolean;
+  promotedTodoIds: string[];
+  projection: AppProjection;
+}>;
+
+export type DeleteMutationResult =
+  | DeleteMutationSuccess
+  | ChangedInAnotherTabFailure
+  | WriteFailure;
+
 export interface AppRepository {
   initialize(): Promise<StartupResult>;
   getProjection(query?: ProjectionQuery): Promise<AppProjection>;
   addTodo(text: string): Promise<MutationResult>;
   editTodo(id: string, text: string): Promise<MutationResult>;
   setTodoCompleted(id: string, completed: boolean): Promise<CompletionMutationResult>;
+  deleteTodo(id: string): Promise<DeleteMutationResult>;
+  restoreDeletedTodo(snapshot: TodoRecord): Promise<MutationResult>;
   close(): void;
 }
 
@@ -325,6 +340,90 @@ export class IndexedDbAppRepository implements AppRepository {
     }
 
     return writeFailed();
+  }
+
+  async deleteTodo(id: string): Promise<DeleteMutationResult> {
+    const database = this.#requireDatabase();
+
+    try {
+      const transaction = database.transaction(
+        ["todos", "completionAwards", "meta"],
+        "readwrite",
+      );
+      const todos = transaction.objectStore("todos");
+      const awards = transaction.objectStore("completionAwards");
+      const meta = transaction.objectStore("meta");
+      const [current, retainedAward, stats] = await Promise.all([
+        todos.get(id),
+        awards.get(id),
+        meta.get("derived-stats"),
+      ]);
+
+      if (!current || !stats || stats.key !== "derived-stats") {
+        await transaction.done;
+        return changedInAnotherTab();
+      }
+
+      await todos.delete(id);
+      const promotedTodoIds: string[] = [];
+
+      if (current.status === "active") {
+        const timestamp = this.#clock();
+        const capacity = activeCapacity(progressionForTotalXp(stats.lifetimeXp).level);
+        const activeCount = await todos
+          .index("by-status-creation-order")
+          .count(statusRange("active"));
+        const availableSlots = Math.max(0, capacity - activeCount);
+        let standbyCursor = await todos
+          .index("by-status-creation-order")
+          .openCursor(statusRange("standby"), "next");
+
+        while (standbyCursor && promotedTodoIds.length < availableSlots) {
+          const promoted: TodoRecord = {
+            ...standbyCursor.value,
+            status: "active",
+            updatedAt: timestamp,
+          };
+          await standbyCursor.update(promoted);
+          promotedTodoIds.push(promoted.id);
+          standbyCursor = await standbyCursor.continue();
+        }
+      }
+
+      await transaction.done;
+
+      return {
+        ok: true,
+        deletedTodo: current,
+        retainedAward: retainedAward !== undefined,
+        promotedTodoIds,
+        projection: await this.getProjection(),
+      };
+    } catch {
+      return writeFailed();
+    }
+  }
+
+  async restoreDeletedTodo(snapshot: TodoRecord): Promise<MutationResult> {
+    const database = this.#requireDatabase();
+
+    try {
+      const transaction = database.transaction("todos", "readwrite");
+      void transaction.done.catch(() => undefined);
+      const todos = transaction.objectStore("todos");
+
+      if (await todos.get(snapshot.id)) {
+        await transaction.done;
+        return changedInAnotherTab();
+      }
+
+      await todos.add(snapshot);
+      await transaction.done;
+
+      return { ok: true, todo: snapshot, projection: await this.getProjection() };
+    } catch (error) {
+      return isConstraintError(error) ? changedInAnotherTab() : writeFailed();
+    }
   }
 
   close(): void {
