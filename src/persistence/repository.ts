@@ -11,16 +11,19 @@ import { progressionForTotalXp, type Progression } from "../domain/progression";
 import { rankForLevel } from "../domain/ranks";
 import { calculateCompletionAward } from "../domain/rewards";
 import { createTodoId, normalizeTodoText, type InvalidTodoText } from "../domain/todo-text";
-import { openVersionedDatabase } from "./db";
+import { clearComposerDraft } from "./composer-draft";
+import { deleteAppDatabase, openVersionedDatabase } from "./db";
 import type { MechaTodoDatabase } from "./db-schema";
 import type {
-  CoreMetaRecord,
   CompletionAwardRecord,
-  DerivedStatsMetaRecord,
   TodoRecord,
   TodoStatus,
 } from "./models";
-import { validateDatabaseContents } from "./validation";
+import { eraseDatabaseContents } from "./startup";
+import {
+  hasExpectedDatabaseStructure,
+  prepareDatabaseForStartup,
+} from "./validation";
 
 export const TODO_PAGE_SIZE = 20;
 export const LIST_CHANGED_MESSAGE = "List changed in another tab. Reload to continue.";
@@ -55,16 +58,46 @@ export type StartupResult =
   | Readonly<{ ok: true; projection: AppProjection }>
   | Readonly<{
       ok: false;
-      category:
-        | "blocked"
-        | "migration-failed"
-        | "open-failed"
-        | "invalid-todo"
-        | "invalid-award"
-        | "invalid-meta"
-        | "inconsistent-records";
+      category: "blocked";
       message: string;
       retryable: boolean;
+    }>
+  | Readonly<{
+      ok: false;
+      category: "local-data";
+      technicalCategory: LocalDataTechnicalCategory;
+      message: "Local data could not be opened.";
+      retryable: true;
+    }>;
+
+export type LocalDataTechnicalCategory =
+  | "migration-failed"
+  | "open-failed"
+  | "invalid-database-schema"
+  | "invalid-todo"
+  | "invalid-award"
+  | "invalid-meta"
+  | "unsupported-rules"
+  | "unsafe-xp"
+  | "unsafe-counter"
+  | "inconsistent-records"
+  | "metadata-rebuild-failed"
+  | "projection-failed"
+  | "erase-transaction-failed"
+  | "delete-blocked"
+  | "delete-failed"
+  | "recreate-failed";
+
+export type EraseConfirmation = Readonly<{ confirmed: boolean }>;
+
+export type EraseLocalDataResult =
+  | Readonly<{ ok: true; projection: AppProjection }>
+  | Readonly<{ ok: false; category: "cancelled" }>
+  | Readonly<{
+      ok: false;
+      category: "local-data";
+      technicalCategory: LocalDataTechnicalCategory;
+      message: "Local data could not be opened.";
     }>;
 
 export type MutationSuccess = Readonly<{
@@ -135,6 +168,7 @@ export interface AppRepository {
   setTodoCompleted(id: string, completed: boolean): Promise<CompletionMutationResult>;
   deleteTodo(id: string): Promise<DeleteMutationResult>;
   restoreDeletedTodo(snapshot: TodoRecord): Promise<MutationResult>;
+  eraseLocalData(confirmation: EraseConfirmation): Promise<EraseLocalDataResult>;
   close(): void;
 }
 
@@ -143,6 +177,7 @@ type RepositoryOptions = Readonly<{
   clock?: () => number;
   idFactory?: () => string;
   calendar?: (timestamp: number) => LocalCalendarDate;
+  clearDraft?: () => void;
 }>;
 
 type CommittedCompletionMutation = Omit<CompletionMutationSuccess, "projection">;
@@ -158,6 +193,7 @@ export class IndexedDbAppRepository implements AppRepository {
   readonly #clock: () => number;
   readonly #idFactory: () => string;
   readonly #calendar: (timestamp: number) => LocalCalendarDate;
+  readonly #clearDraft: () => void;
   #database: IDBPDatabase<MechaTodoDatabase> | null = null;
 
   constructor({
@@ -165,16 +201,23 @@ export class IndexedDbAppRepository implements AppRepository {
     clock = Date.now,
     idFactory = createTodoId,
     calendar = (timestamp) => localCalendarDate(new Date(timestamp)),
+    clearDraft = clearComposerDraft,
   }: RepositoryOptions = {}) {
     this.#databaseName = databaseName;
     this.#clock = clock;
     this.#idFactory = idFactory;
     this.#calendar = calendar;
+    this.#clearDraft = clearDraft;
   }
 
   async initialize(): Promise<StartupResult> {
     if (this.#database) {
-      return { ok: true, projection: await this.getProjection() };
+      try {
+        return { ok: true, projection: await this.getProjection() };
+      } catch {
+        this.close();
+        return localDataProblem("projection-failed");
+      }
     }
 
     const opened = await openVersionedDatabase({
@@ -182,24 +225,30 @@ export class IndexedDbAppRepository implements AppRepository {
       createdAt: this.#clock(),
     });
     if (!opened.ok) {
-      return opened;
+      if (opened.category === "blocked") {
+        return {
+          ok: false,
+          category: "blocked",
+          message: opened.message,
+          retryable: opened.retryable,
+        };
+      }
+      return localDataProblem(opened.category);
     }
 
-    const validation = await validateDatabaseContents(opened.database);
-    if (!validation.ok) {
+    const preparation = await prepareDatabaseForStartup(opened.database);
+    if (!preparation.ok) {
       opened.database.close();
-      return {
-        ok: false,
-        category: validation.category,
-        message: "Local data could not be opened.",
-        retryable: true,
-      };
+      return localDataProblem(preparation.category);
     }
 
     this.#database = opened.database;
-    await this.#rebuildMetadata(validation.value);
-
-    return { ok: true, projection: await this.getProjection() };
+    try {
+      return { ok: true, projection: await this.getProjection() };
+    } catch {
+      this.close();
+      return localDataProblem("projection-failed");
+    }
   }
 
   async getProjection(query: ProjectionQuery = {}): Promise<AppProjection> {
@@ -426,6 +475,50 @@ export class IndexedDbAppRepository implements AppRepository {
     }
   }
 
+  async eraseLocalData(
+    confirmation: EraseConfirmation,
+  ): Promise<EraseLocalDataResult> {
+    if (!confirmation.confirmed) {
+      return { ok: false, category: "cancelled" };
+    }
+
+    let database = this.#database;
+    if (!database) {
+      const opened = await openVersionedDatabase({
+        name: this.#databaseName,
+        createdAt: this.#clock(),
+      });
+      if (!opened.ok) {
+        return this.#deleteAndRecreateDatabase();
+      }
+      database = opened.database;
+    }
+
+    if (!hasExpectedDatabaseStructure(database)) {
+      database.close();
+      this.#database = null;
+      return this.#deleteAndRecreateDatabase();
+    }
+
+    const erasure = await eraseDatabaseContents(database, this.#clock());
+    if (!erasure.ok) {
+      if (database !== this.#database) {
+        database.close();
+      }
+      return eraseFailed(erasure.category);
+    }
+
+    this.#database = database;
+    this.#clearDraft();
+    try {
+      const projection = await this.getProjection();
+      return { ok: true, projection };
+    } catch {
+      this.close();
+      return eraseFailed("projection-failed");
+    }
+  }
+
   close(): void {
     this.#database?.close();
     this.#database = null;
@@ -596,37 +689,20 @@ export class IndexedDbAppRepository implements AppRepository {
     };
   }
 
-  async #rebuildMetadata(records: {
-    todos: TodoRecord[];
-    completionAwards: { totalXp: number }[];
-    core: CoreMetaRecord;
-    derivedStats: DerivedStatsMetaRecord | null;
-  }): Promise<void> {
-    const nextCreationOrder = nextOrder(records.todos.map((todo) => todo.creationOrder));
-    const nextCompletionOrder = nextOrder(
-      records.todos.flatMap((todo) => todo.completionOrder ?? []),
-    );
-    const lifetimeXp = records.completionAwards.reduce((total, award) => total + award.totalXp, 0);
-    const awardCount = records.completionAwards.length;
-    const coreMatches =
-      records.core.nextCreationOrder === nextCreationOrder &&
-      records.core.nextCompletionOrder === nextCompletionOrder;
-    const statsMatch =
-      records.derivedStats?.lifetimeXp === lifetimeXp &&
-      records.derivedStats.awardCount === awardCount;
-
-    if (coreMatches && statsMatch) {
-      return;
+  async #deleteAndRecreateDatabase(): Promise<EraseLocalDataResult> {
+    this.close();
+    const deletion = await deleteAppDatabase(this.#databaseName);
+    if (!deletion.ok) {
+      return eraseFailed(deletion.category);
     }
 
-    const database = this.#requireDatabase();
-    const transaction = database.transaction("meta", "readwrite");
-    const meta = transaction.objectStore("meta");
-    await Promise.all([
-      meta.put({ ...records.core, nextCreationOrder, nextCompletionOrder }),
-      meta.put({ key: "derived-stats", lifetimeXp, awardCount }),
-    ]);
-    await transaction.done;
+    const startup = await this.initialize();
+    if (!startup.ok) {
+      return eraseFailed("recreate-failed");
+    }
+
+    this.#clearDraft();
+    return startup;
   }
 
   #requireDatabase(): IDBPDatabase<MechaTodoDatabase> {
@@ -702,10 +778,6 @@ function pageFromItems(
   });
 }
 
-function nextOrder(orders: readonly number[]): number {
-  return orders.reduce((highest, order) => Math.max(highest, order), -1) + 1;
-}
-
 function changedInAnotherTab(): ChangedInAnotherTabFailure {
   return {
     ok: false,
@@ -720,4 +792,27 @@ function writeFailed(): WriteFailure {
 
 function isConstraintError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "ConstraintError";
+}
+
+function localDataProblem(
+  technicalCategory: LocalDataTechnicalCategory,
+): Extract<StartupResult, { category: "local-data" }> {
+  return {
+    ok: false,
+    category: "local-data",
+    technicalCategory,
+    message: "Local data could not be opened.",
+    retryable: true,
+  };
+}
+
+function eraseFailed(
+  technicalCategory: LocalDataTechnicalCategory,
+): Extract<EraseLocalDataResult, { category: "local-data" }> {
+  return {
+    ok: false,
+    category: "local-data",
+    technicalCategory,
+    message: "Local data could not be opened.",
+  };
 }

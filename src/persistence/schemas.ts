@@ -111,7 +111,16 @@ export type ValidatedRecords = Readonly<{
 
 export type RecordsValidationResult =
   | Readonly<{ ok: true; value: ValidatedRecords }>
-  | Readonly<{ ok: false; category: "invalid-todo" | "invalid-award" | "invalid-meta" | "inconsistent-records" }>;
+  | Readonly<{
+      ok: false;
+      category:
+        | "invalid-todo"
+        | "invalid-award"
+        | "invalid-meta"
+        | "unsupported-rules"
+        | "unsafe-xp"
+        | "inconsistent-records";
+    }>;
 
 export function validateAuthoritativeRecords(
   records: AuthoritativeRecords,
@@ -121,9 +130,20 @@ export function validateAuthoritativeRecords(
     return { ok: false, category: "invalid-todo" };
   }
 
+  if (hasUnsupportedAwardRules(records.completionAwards)) {
+    return { ok: false, category: "unsupported-rules" };
+  }
+
   const completionAwards = parseAll(CompletionAwardRecordSchema, records.completionAwards);
   if (!completionAwards) {
     return { ok: false, category: "invalid-award" };
+  }
+
+  if (hasUnsupportedCoreRules(records.meta)) {
+    return { ok: false, category: "unsupported-rules" };
+  }
+  if (hasUnsafeStoredLifetimeXp(records.meta)) {
+    return { ok: false, category: "unsafe-xp" };
   }
 
   const meta = parseAll(MetaRecordSchema, records.meta);
@@ -160,6 +180,14 @@ export function validateAuthoritativeRecords(
     return { ok: false, category: "inconsistent-records" };
   }
 
+  let lifetimeXp = 0;
+  for (const award of completionAwards) {
+    if (lifetimeXp > Number.MAX_SAFE_INTEGER - award.totalXp) {
+      return { ok: false, category: "unsafe-xp" };
+    }
+    lifetimeXp += award.totalXp;
+  }
+
   return {
     ok: true,
     value: {
@@ -169,6 +197,42 @@ export function validateAuthoritativeRecords(
       derivedStats: derivedStatsRecords[0] ?? null,
     },
   };
+}
+
+function hasUnsupportedAwardRules(records: readonly unknown[]): boolean {
+  return records.some(
+    (record) =>
+      isRecord(record) &&
+      typeof record.todoId === "string" &&
+      "rulesVersion" in record &&
+      record.rulesVersion !== REWARD_RULES_V1.rulesVersion,
+  );
+}
+
+function hasUnsupportedCoreRules(records: readonly unknown[]): boolean {
+  return records.some(
+    (record) =>
+      isRecord(record) &&
+      record.key === "core" &&
+      "rulesVersion" in record &&
+      record.rulesVersion !== REWARD_RULES_V1.rulesVersion,
+  );
+}
+
+function hasUnsafeStoredLifetimeXp(records: readonly unknown[]): boolean {
+  return records.some(
+    (record) =>
+      isRecord(record) &&
+      record.key === "derived-stats" &&
+      "lifetimeXp" in record &&
+      (typeof record.lifetimeXp !== "number" ||
+        !Number.isSafeInteger(record.lifetimeXp) ||
+        record.lifetimeXp < 0),
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function parseAll<TSchema extends v.BaseSchema<unknown, unknown, v.BaseIssue<unknown>>>(

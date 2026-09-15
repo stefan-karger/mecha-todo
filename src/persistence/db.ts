@@ -12,6 +12,13 @@ export type DatabaseOpenResult =
       message: string;
     }>;
 
+export type DatabaseDeleteResult =
+  | Readonly<{ ok: true }>
+  | Readonly<{
+      ok: false;
+      category: "delete-blocked" | "delete-failed";
+    }>;
+
 type OpenDatabaseOptions = Readonly<{
   name?: string;
   version?: number;
@@ -78,5 +85,26 @@ export function openVersionedDatabase({
         });
       },
     );
+  });
+}
+
+export function deleteAppDatabase(name = DATABASE_NAME): Promise<DatabaseDeleteResult> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: DatabaseDeleteResult): void => {
+      if (!settled) {
+        settled = true;
+        resolve(result);
+      }
+    };
+
+    try {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => finish({ ok: true });
+      request.onerror = () => finish({ ok: false, category: "delete-failed" });
+      request.onblocked = () => finish({ ok: false, category: "delete-blocked" });
+    } catch {
+      finish({ ok: false, category: "delete-failed" });
+    }
   });
 }
