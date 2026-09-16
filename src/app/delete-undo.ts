@@ -11,6 +11,7 @@ type UndoScheduler = Readonly<{
 
 export class DeleteUndoController {
   readonly #scheduler: UndoScheduler;
+  readonly #onChange: (available: boolean) => void;
   #snapshot: TodoRecord | null = null;
   #expiryTimer: TimerHandle | null = null;
 
@@ -19,8 +20,10 @@ export class DeleteUndoController {
       setTimeout: globalThis.setTimeout.bind(globalThis),
       clearTimeout: globalThis.clearTimeout.bind(globalThis),
     },
+    onChange: (available: boolean) => void = () => undefined,
   ) {
     this.#scheduler = scheduler;
+    this.#onChange = onChange;
   }
 
   get hasPendingUndo(): boolean {
@@ -30,9 +33,11 @@ export class DeleteUndoController {
   offer(snapshot: TodoRecord): void {
     this.clear();
     this.#snapshot = snapshot;
+    this.#onChange(true);
     this.#expiryTimer = this.#scheduler.setTimeout(() => {
       this.#snapshot = null;
       this.#expiryTimer = null;
+      this.#onChange(false);
     }, DELETE_UNDO_WINDOW_MS);
   }
 
@@ -52,5 +57,6 @@ export class DeleteUndoController {
     }
     this.#snapshot = null;
     this.#expiryTimer = null;
+    this.#onChange(false);
   }
 }

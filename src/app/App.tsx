@@ -1,8 +1,9 @@
-import { For, Show, createSignal, onCleanup } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { PRODUCT_NAME } from "../config/product";
 import { loadComposerDraft, saveComposerDraft } from "../persistence/composer-draft";
-import type { TodoRecord } from "../persistence/models";
+import type { TodoRecord, TodoStatus } from "../persistence/models";
+import { DeleteUndoController } from "./delete-undo";
 import {
   IndexedDbAppRepository,
   TODO_PAGE_SIZE,
@@ -24,6 +25,9 @@ type ApplicationState =
 
 type AppProps = Readonly<{ repository?: AppRepository }>;
 type BrowseStatus = "standby" | "completed";
+type EditState = Readonly<{ id: string; draft: string; error: string; saving: boolean }>;
+
+const COMPLETION_HOLD_MS = 240;
 
 export function App(props: AppProps = {}) {
   const repository = props.repository ?? new IndexedDbAppRepository();
@@ -33,6 +37,16 @@ export function App(props: AppProps = {}) {
   const [feedback, setFeedback] = createSignal("");
   const [adding, setAdding] = createSignal(false);
   const [erasing, setErasing] = createSignal(false);
+  const [editState, setEditState] = createSignal<EditState | null>(null);
+  const [pendingCompletionIds, setPendingCompletionIds] = createSignal<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [optimisticStatuses, setOptimisticStatuses] = createSignal<
+    Readonly<Record<string, TodoStatus>>
+  >({});
+  const [pendingDeleteIds, setPendingDeleteIds] = createSignal<ReadonlySet<string>>(new Set());
+  const [undoAvailable, setUndoAvailable] = createSignal(false);
+  const deleteUndo = new DeleteUndoController(undefined, setUndoAvailable);
 
   const [standbyOpen, setStandbyOpen] = createSignal(false);
   const [standbyItems, setStandbyItems] = createSignal<TodoRecord[]>([]);
@@ -68,7 +82,10 @@ export function App(props: AppProps = {}) {
   };
 
   queueMicrotask(() => void openApplication());
-  onCleanup(() => repository.close());
+  onCleanup(() => {
+    deleteUndo.clear();
+    repository.close();
+  });
 
   const resetBrowseState = (): void => {
     setStandbyOpen(false);
@@ -106,6 +123,185 @@ export function App(props: AppProps = {}) {
     const setOpen = status === "standby" ? setStandbyOpen : setCompletedOpen;
     setOpen(!isOpen);
     if (!isOpen && count > 0) void loadPage(status, false);
+  };
+
+  const focusRowAction = (id: string, action: "toggle" | "delete" | "edit"): void => {
+    queueMicrotask(() => {
+      const element = [...document.querySelectorAll<HTMLElement>(`[data-todo-${action}]`)].find(
+        (candidate) => candidate.dataset[`todo${action[0].toUpperCase()}${action.slice(1)}`] === id,
+      );
+      element?.focus();
+    });
+  };
+
+  const updateLoadedTodo = (todo: TodoRecord): void => {
+    const replace = (items: TodoRecord[]) =>
+      items.map((item) => (item.id === todo.id ? todo : item));
+    setStandbyItems(replace);
+    setCompletedItems(replace);
+  };
+
+  const reloadBrowseStatus = async (status: BrowseStatus): Promise<void> => {
+    const isOpen = untrack(status === "standby" ? standbyOpen : completedOpen);
+    if (!isOpen) return;
+
+    const previousLength = untrack(
+      status === "standby"
+        ? () => standbyItems().length
+        : () => completedItems().length,
+    );
+    const setItems = status === "standby" ? setStandbyItems : setCompletedItems;
+    const setCursor = status === "standby" ? setStandbyCursor : setCompletedCursor;
+    const setHasMore = status === "standby" ? setStandbyHasMore : setCompletedHasMore;
+    const setLoading = status === "standby" ? setStandbyLoading : setCompletedLoading;
+
+    setLoading(true);
+    try {
+      let page = await repository.getTodoPage(status);
+      const items = [...page.items];
+      while (page.hasMore && items.length < previousLength && page.nextCursor) {
+        page = await repository.getTodoPage(status, page.nextCursor);
+        items.push(...page.items);
+      }
+      setItems(items);
+      setCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch {
+      setFeedback("Tasks could not be loaded. Retry.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyCommittedProjection = async (fallback: AppProjection): Promise<void> => {
+    setState({ kind: "ready", projection: fallback });
+    try {
+      const projection = await repository.getSummaryProjection();
+      setState({ kind: "ready", projection });
+    } catch {
+      // The committed mutation projection remains usable if the refresh fails.
+    }
+    await Promise.all([reloadBrowseStatus("standby"), reloadBrowseStatus("completed")]);
+  };
+
+  const startEdit = (todo: TodoRecord): void => {
+    setEditState({ id: todo.id, draft: todo.text, error: "", saving: false });
+  };
+
+  const changeEditDraft: JSX.EventHandler<HTMLInputElement, InputEvent> = (event) => {
+    const current = editState();
+    if (!current) return;
+    setEditState({ ...current, draft: event.currentTarget.value, error: "" });
+  };
+
+  const cancelEdit = (id: string): void => {
+    if (editState()?.id === id) {
+      setEditState(null);
+      focusRowAction(id, "edit");
+    }
+  };
+
+  const saveEdit = async (id: string): Promise<void> => {
+    const current = editState();
+    if (!current || current.id !== id || current.saving) return;
+
+    setEditState({ ...current, saving: true, error: "" });
+    const result = await repository.editTodo(id, current.draft);
+
+    if (!result.ok) {
+      const error = result.category === "validation" ? result.validation.message : result.message;
+      if (untrack(editState)?.id === id) {
+        setEditState({ id, draft: current.draft, error, saving: false });
+        focusRowAction(id, "edit");
+      }
+      return;
+    }
+
+    setState({ kind: "ready", projection: result.projection });
+    if (untrack(editState)?.id === id) setEditState(null);
+    updateLoadedTodo(result.todo);
+    focusRowAction(id, "edit");
+  };
+
+  const toggleTodo = async (todo: TodoRecord): Promise<void> => {
+    if (pendingCompletionIds().has(todo.id)) return;
+    const completed = todo.status !== "completed";
+    const optimisticStatus: TodoStatus = completed ? "completed" : "active";
+
+    setPendingCompletionIds((current) => new Set(current).add(todo.id));
+    setOptimisticStatuses((current) => ({ ...current, [todo.id]: optimisticStatus }));
+    const result = await repository.setTodoCompleted(todo.id, completed);
+
+    if (!result.ok) {
+      setOptimisticStatuses((current) => {
+        const next = { ...current };
+        delete next[todo.id];
+        return next;
+      });
+      setPendingCompletionIds((current) => {
+        const next = new Set(current);
+        next.delete(todo.id);
+        return next;
+      });
+      setFeedback(result.message);
+      focusRowAction(todo.id, "toggle");
+      return;
+    }
+
+    setFeedback(
+      result.action === "reopened"
+        ? "TASK REOPENED · XP RETAINED"
+        : result.alreadyCredited
+          ? "TASK COMPLETE · ALREADY CREDITED"
+          : "TASK COMPLETE",
+    );
+
+    if (completed && result.changed) {
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, COMPLETION_HOLD_MS));
+    }
+    await applyCommittedProjection(result.projection);
+    setOptimisticStatuses((current) => {
+      const next = { ...current };
+      delete next[todo.id];
+      return next;
+    });
+    setPendingCompletionIds((current) => {
+      const next = new Set(current);
+      next.delete(todo.id);
+      return next;
+    });
+  };
+
+  const deleteTodo = async (todo: TodoRecord): Promise<void> => {
+    if (pendingDeleteIds().has(todo.id)) return;
+    setPendingDeleteIds((current) => new Set(current).add(todo.id));
+    const result = await repository.deleteTodo(todo.id);
+    setPendingDeleteIds((current) => {
+      const next = new Set(current);
+      next.delete(todo.id);
+      return next;
+    });
+
+    if (!result.ok) {
+      setFeedback(result.message);
+      focusRowAction(todo.id, "delete");
+      return;
+    }
+
+    deleteUndo.offer(result.deletedTodo);
+    setFeedback(result.retainedAward ? "TASK DELETED · XP RETAINED" : "TASK DELETED");
+    await applyCommittedProjection(result.projection);
+  };
+
+  const undoDelete = async (): Promise<void> => {
+    const result = await deleteUndo.undo((snapshot) => repository.restoreDeletedTodo(snapshot));
+    if (!result) return;
+    if (!result.ok) {
+      setFeedback(result.category === "validation" ? result.validation.message : result.message);
+      return;
+    }
+    setFeedback("TASK RESTORED");
+    await applyCommittedProjection(result.projection);
   };
 
   const handleDraftInput: JSX.EventHandler<HTMLInputElement, InputEvent> = (event) => {
@@ -151,6 +347,8 @@ export function App(props: AppProps = {}) {
   };
 
   const retry = (): void => {
+    deleteUndo.clear();
+    setEditState(null);
     repository.close();
     void openApplication();
   };
@@ -169,6 +367,8 @@ export function App(props: AppProps = {}) {
     }
 
     eraseDialog?.close();
+    deleteUndo.clear();
+    setEditState(null);
     resetBrowseState();
     setDraft("");
     saveComposerDraft("");
@@ -241,7 +441,19 @@ export function App(props: AppProps = {}) {
                   </span>
                 </div>
                 <Show when={projection().activeTodos.length > 0} fallback={<p class="empty-state">No active tasks. Add one when you are ready.</p>}>
-                  <TodoList items={projection().activeTodos} />
+                  <TodoList
+                    items={projection().activeTodos}
+                    editState={editState()}
+                    optimisticStatuses={optimisticStatuses()}
+                    pendingCompletionIds={pendingCompletionIds()}
+                    pendingDeleteIds={pendingDeleteIds()}
+                    onCancelEdit={cancelEdit}
+                    onChangeEditDraft={changeEditDraft}
+                    onDelete={(todo) => void deleteTodo(todo)}
+                    onSaveEdit={(id) => void saveEdit(id)}
+                    onStartEdit={startEdit}
+                    onToggle={(todo) => void toggleTodo(todo)}
+                  />
                 </Show>
               </section>
 
@@ -255,8 +467,18 @@ export function App(props: AppProps = {}) {
                 open={standbyOpen()}
                 status="standby"
                 title="Standby"
+                editState={editState()}
+                optimisticStatuses={optimisticStatuses()}
+                pendingCompletionIds={pendingCompletionIds()}
+                pendingDeleteIds={pendingDeleteIds()}
+                onCancelEdit={cancelEdit}
+                onChangeEditDraft={changeEditDraft}
+                onDelete={(todo) => void deleteTodo(todo)}
                 onLoadMore={() => void loadPage("standby", true)}
+                onSaveEdit={(id) => void saveEdit(id)}
+                onStartEdit={startEdit}
                 onToggle={() => toggleBrowse("standby", projection().standbyCount)}
+                onToggleTodo={(todo) => void toggleTodo(todo)}
               />
               <BrowseSection
                 count={projection().completedCount}
@@ -268,8 +490,18 @@ export function App(props: AppProps = {}) {
                 open={completedOpen()}
                 status="completed"
                 title="Completed"
+                editState={editState()}
+                optimisticStatuses={optimisticStatuses()}
+                pendingCompletionIds={pendingCompletionIds()}
+                pendingDeleteIds={pendingDeleteIds()}
+                onCancelEdit={cancelEdit}
+                onChangeEditDraft={changeEditDraft}
+                onDelete={(todo) => void deleteTodo(todo)}
                 onLoadMore={() => void loadPage("completed", true)}
+                onSaveEdit={(id) => void saveEdit(id)}
+                onStartEdit={startEdit}
                 onToggle={() => toggleBrowse("completed", projection().completedCount)}
+                onToggleTodo={(todo) => void toggleTodo(todo)}
               />
 
               <div class="composer-dock">
@@ -298,7 +530,14 @@ export function App(props: AppProps = {}) {
                   </Show>
                 </form>
 
-                <div class="feedback" role="status" aria-live="polite" aria-atomic="true">{feedback()}</div>
+                <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
+                  <span>{feedback()}</span>
+                  <Show when={undoAvailable()}>
+                    <button class="undo-action" type="button" onClick={() => void undoDelete()}>
+                      Undo
+                    </button>
+                  </Show>
+                </div>
               </div>
             </main>
           );
@@ -331,23 +570,45 @@ type BrowseSectionProps = Readonly<{
   open: boolean;
   status: BrowseStatus;
   title: string;
+  editState: EditState | null;
+  optimisticStatuses: Readonly<Record<string, TodoStatus>>;
+  pendingCompletionIds: ReadonlySet<string>;
+  pendingDeleteIds: ReadonlySet<string>;
+  onCancelEdit: (id: string) => void;
+  onChangeEditDraft: JSX.EventHandler<HTMLInputElement, InputEvent>;
+  onDelete: (todo: TodoRecord) => void;
   onLoadMore: () => void;
+  onSaveEdit: (id: string) => void;
+  onStartEdit: (todo: TodoRecord) => void;
   onToggle: () => void;
+  onToggleTodo: (todo: TodoRecord) => void;
 }>;
 
 function BrowseSection(props: BrowseSectionProps) {
-  const panelId = `${props.status}-tasks`;
+  const panelId = () => `${props.status}-tasks`;
   return (
     <section class="browse-section">
-      <button class="disclosure" type="button" aria-controls={panelId} aria-expanded={props.open ? "true" : "false"} onClick={props.onToggle}>
+      <button class="disclosure" type="button" aria-controls={panelId()} aria-expanded={props.open ? "true" : "false"} onClick={props.onToggle}>
         <span class="disclosure-marker" aria-hidden="true">{props.open ? "−" : "+"}</span>
         <span>{props.title}</span>
         <span class="section-count">{props.count}</span>
       </button>
       <Show when={props.open}>
-        <div id={panelId} class="browse-panel" aria-busy={props.loading ? "true" : "false"}>
+        <div id={panelId()} class="browse-panel" aria-busy={props.loading ? "true" : "false"}>
           <Show when={props.count > 0} fallback={<p class="empty-state">{props.emptyCopy}</p>}>
-            <TodoList items={props.items} />
+            <TodoList
+              items={props.items}
+              editState={props.editState}
+              optimisticStatuses={props.optimisticStatuses}
+              pendingCompletionIds={props.pendingCompletionIds}
+              pendingDeleteIds={props.pendingDeleteIds}
+              onCancelEdit={props.onCancelEdit}
+              onChangeEditDraft={props.onChangeEditDraft}
+              onDelete={props.onDelete}
+              onSaveEdit={props.onSaveEdit}
+              onStartEdit={props.onStartEdit}
+              onToggle={props.onToggleTodo}
+            />
             <Show when={props.loading && props.items.length === 0}>
               <p class="loading-copy">Loading tasks...</p>
             </Show>
@@ -363,18 +624,123 @@ function BrowseSection(props: BrowseSectionProps) {
   );
 }
 
-function TodoList(props: Readonly<{ items: TodoRecord[] }>) {
+type TodoListProps = Readonly<{
+  items: TodoRecord[];
+  editState: EditState | null;
+  optimisticStatuses: Readonly<Record<string, TodoStatus>>;
+  pendingCompletionIds: ReadonlySet<string>;
+  pendingDeleteIds: ReadonlySet<string>;
+  onCancelEdit: (id: string) => void;
+  onChangeEditDraft: JSX.EventHandler<HTMLInputElement, InputEvent>;
+  onDelete: (todo: TodoRecord) => void;
+  onSaveEdit: (id: string) => void;
+  onStartEdit: (todo: TodoRecord) => void;
+  onToggle: (todo: TodoRecord) => void;
+}>;
+
+function TodoList(props: TodoListProps) {
   return (
     <ul class="todo-list">
       <For each={props.items}>
-        {(todo) => (
-          <li class={`todo-row todo-row--${todo.status}`}>
-            <span class="todo-status" aria-hidden="true">
-              {todo.status === "completed" ? "✓" : todo.status === "standby" ? "Ⅱ" : "●"}
-            </span>
-            <span>{todo.text}</span>
-          </li>
-        )}
+        {(todo) => {
+          const visualStatus = createMemo(
+            () => props.optimisticStatuses[todo.id] ?? todo.status,
+          );
+          const rowEdit = createMemo(() =>
+            props.editState?.id === todo.id ? props.editState : null,
+          );
+          const editing = () => rowEdit() !== null;
+          const editErrorId = () => `todo-edit-error-${todo.id}`;
+          return (
+            <li
+              class={`todo-row todo-row--${visualStatus()}`}
+              data-todo-id={todo.id}
+              aria-busy={
+                props.pendingCompletionIds.has(todo.id) || props.pendingDeleteIds.has(todo.id)
+                  ? "true"
+                  : undefined
+              }
+            >
+              <button
+                class="todo-status"
+                type="button"
+                role="checkbox"
+                aria-checked={visualStatus() === "completed" ? "true" : "false"}
+                aria-label={visualStatus() === "completed" ? `Reopen ${todo.text}` : `Complete ${todo.text}`}
+                data-todo-toggle={todo.id}
+                disabled={props.pendingCompletionIds.has(todo.id)}
+                onClick={() => props.onToggle(todo)}
+              >
+                <span aria-hidden="true">
+                  {visualStatus() === "completed" ? "✓" : visualStatus() === "standby" ? "Ⅱ" : "●"}
+                </span>
+              </button>
+
+              <Show
+                when={editing()}
+                fallback={
+                  <button
+                    class="todo-text"
+                    type="button"
+                    data-todo-edit={todo.id}
+                    onClick={() => props.onStartEdit(todo)}
+                  >
+                    {todo.text}
+                  </button>
+                }
+              >
+                <form
+                  class="todo-edit"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    props.onSaveEdit(todo.id);
+                  }}
+                >
+                  <label class="sr-only" for={`todo-edit-${todo.id}`}>Edit {todo.text}</label>
+                  <input
+                    id={`todo-edit-${todo.id}`}
+                    type="text"
+                    inputmode="text"
+                    enterkeyhint="done"
+                    autocomplete="off"
+                    value={rowEdit()?.draft ?? todo.text}
+                    data-todo-edit={todo.id}
+                    aria-describedby={rowEdit()?.error ? editErrorId() : undefined}
+                    aria-invalid={rowEdit()?.error ? "true" : undefined}
+                    readonly={rowEdit()?.saving}
+                    onInput={props.onChangeEditDraft}
+                    onBlur={() => queueMicrotask(() => props.onSaveEdit(todo.id))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        props.onCancelEdit(todo.id);
+                      }
+                    }}
+                    ref={(element) => queueMicrotask(() => element.focus())}
+                  />
+                  <p
+                    id={editErrorId()}
+                    class="field-error"
+                    hidden={!rowEdit()?.error}
+                  >
+                    {rowEdit()?.error}
+                  </p>
+                </form>
+              </Show>
+
+              <button
+                class="todo-delete"
+                type="button"
+                aria-label={`Delete ${todo.text}`}
+                data-todo-delete={todo.id}
+                disabled={props.pendingDeleteIds.has(todo.id)}
+                onClick={() => props.onDelete(todo)}
+              >
+                Delete
+              </button>
+            </li>
+          );
+        }}
       </For>
     </ul>
   );

@@ -37,7 +37,7 @@ test("restores, validates, commits, and clears the persistent composer draft", a
 
   await input.fill("Calibrate left arm");
   await input.press("Enter");
-  await expect(page.locator(".active-bay .todo-row")).toHaveText("●Calibrate left arm");
+  await expect(page.locator(".active-bay .todo-text")).toHaveText("Calibrate left arm");
   await expect(input).toHaveValue("");
   await expect(input).toBeFocused();
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), draftKey)).toBeNull();
