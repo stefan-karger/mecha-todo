@@ -31,8 +31,6 @@
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
     "@solidjs/vite-plugin": "3.0.0-next.43",
-    "@tailwindcss/vite": "4.3.3",
-    "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vite": "8.3.0"
   }
