@@ -10,14 +10,14 @@ import { SettingsDialog } from "./SettingsDialog";
 import {
   IndexedDbAppRepository,
   TODO_PAGE_SIZE,
-  type AppProjection,
+  type ApplicationViewState,
   type AppRepository,
   type CompletionMutationSuccess,
   type LocalDataTechnicalCategory,
   type TodoPageCursor,
 } from "../persistence/repository";
 
-type ReadyState = Readonly<{ kind: "ready"; projection: AppProjection }>;
+type ReadyState = Readonly<{ kind: "ready"; viewState: ApplicationViewState }>;
 type ApplicationState =
   | Readonly<{ kind: "opening" }>
   | ReadyState
@@ -79,10 +79,10 @@ export function App(props: AppProps = {}) {
   const openApplication = async (): Promise<void> => {
     setState({ kind: "opening" });
     setFeedback("");
-    const result = await repository.initialize({ summaryOnly: true });
+    const result = await repository.initialize();
 
     if (result.ok) {
-      setState({ kind: "ready", projection: result.projection });
+      setState({ kind: "ready", viewState: result.applicationViewState });
       return;
     }
 
@@ -185,8 +185,8 @@ export function App(props: AppProps = {}) {
     }
   };
 
-  const applyCommittedProjection = async (
-    fallback: AppProjection,
+  const reconcileCommittedViewState = async (
+    committedViewState: ApplicationViewState,
     affectedTodoIds: readonly string[],
   ): Promise<boolean> => {
     const standbyLength = untrack(standbyItems).length;
@@ -195,24 +195,24 @@ export function App(props: AppProps = {}) {
     const removeAffected = (items: TodoRecord[]) =>
       items.filter((item) => !affected.has(item.id));
 
-    await action(function* publishCommittedProjection() {
-      setState({ kind: "ready", projection: fallback });
+    await action(function* publishCommittedViewState() {
+      setState({ kind: "ready", viewState: committedViewState });
       setStandbyItems(removeAffected);
       setCompletedItems(removeAffected);
     })();
 
-    let summaryRefreshed = true;
+    let viewStateRefreshed = true;
     try {
-      const projection = await repository.getSummaryProjection();
-      setState({ kind: "ready", projection });
+      const viewState = await repository.getApplicationViewState();
+      setState({ kind: "ready", viewState });
     } catch {
-      summaryRefreshed = false;
+      viewStateRefreshed = false;
     }
     const pageRefreshes = await Promise.all([
       reloadBrowseStatus("standby", standbyLength),
       reloadBrowseStatus("completed", completedLength),
     ]);
-    return summaryRefreshed && pageRefreshes.every(Boolean);
+    return viewStateRefreshed && pageRefreshes.every(Boolean);
   };
 
   const startEdit = (todo: TodoRecord): void => {
@@ -249,7 +249,7 @@ export function App(props: AppProps = {}) {
       return;
     }
 
-    setState({ kind: "ready", projection: result.projection });
+    setState({ kind: "ready", viewState: result.applicationViewState });
     if (untrack(editState)?.id === id) setEditState(null);
     updateLoadedTodo(result.todo);
     focusRowAction(id, "edit");
@@ -259,7 +259,7 @@ export function App(props: AppProps = {}) {
     if (pendingCompletionIds().has(todo.id)) return;
     const completed = todo.status !== "completed";
     const optimisticStatus: TodoStatus = completed ? "completed" : "active";
-    const previousProjection = (untrack(state) as ReadyState).projection;
+    const previousViewState = (untrack(state) as ReadyState).viewState;
 
     setPendingCompletionIds((current) => new Set(current).add(todo.id));
     setOptimisticStatuses((current) => ({ ...current, [todo.id]: optimisticStatus }));
@@ -281,12 +281,12 @@ export function App(props: AppProps = {}) {
       return;
     }
 
-    const successFeedback = completionFeedback(result, previousProjection);
+    const successFeedback = completionFeedback(result, previousViewState);
 
     if (completed && result.changed) {
       await new Promise<void>((resolve) => globalThis.setTimeout(resolve, COMPLETION_HOLD_MS));
     }
-    const reconciled = await applyCommittedProjection(result.projection, [
+    const reconciled = await reconcileCommittedViewState(result.applicationViewState, [
       result.todo.id,
       ...result.promotedTodoIds,
     ]);
@@ -321,7 +321,7 @@ export function App(props: AppProps = {}) {
 
     deleteUndo.offer(result.deletedTodo);
     const successFeedback = result.retainedAward ? "TASK DELETED · XP RETAINED" : "TASK DELETED";
-    const reconciled = await applyCommittedProjection(result.projection, [
+    const reconciled = await reconcileCommittedViewState(result.applicationViewState, [
       result.deletedTodo.id,
       ...result.promotedTodoIds,
     ]);
@@ -340,7 +340,10 @@ export function App(props: AppProps = {}) {
       setFeedback(result.category === "validation" ? result.validation.message : result.message);
       return;
     }
-    const reconciled = await applyCommittedProjection(result.projection, [result.todo.id]);
+    const reconciled = await reconcileCommittedViewState(
+      result.applicationViewState,
+      [result.todo.id],
+    );
     setFeedback(reconciled ? "TASK RESTORED" : SAVED_REFRESH_FAILED_MESSAGE);
   };
 
@@ -368,7 +371,7 @@ export function App(props: AppProps = {}) {
       return;
     }
 
-    setState({ kind: "ready", projection: result.projection });
+    setState({ kind: "ready", viewState: result.applicationViewState });
     setDraft("");
     saveComposerDraft("");
     setFeedback(result.todo.status === "standby" ? "ADDED TO STANDBY" : "Task added.");
@@ -441,7 +444,7 @@ export function App(props: AppProps = {}) {
     saveComposerDraft("");
     setComposerError("");
     setFeedback("LOCAL DATA ERASED");
-    setState({ kind: "ready", projection: result.projection });
+    setState({ kind: "ready", viewState: result.applicationViewState });
   };
 
   return (
@@ -482,19 +485,19 @@ export function App(props: AppProps = {}) {
 
       <Show when={state().kind === "ready"}>
         {(() => {
-          const projection = () => (state() as ReadyState).projection;
+          const viewState = () => (state() as ReadyState).viewState;
           return (
             <main class="task-system" aria-labelledby="active-bay-heading">
               <section class="hud" aria-label="Progression status">
                 <button
                   class="badge-control"
                   type="button"
-                  aria-label={`Open Progression details for ${projection().rank}`}
+                  aria-label={`Open Progression details for ${viewState().rank}`}
                   onClick={openSettings}
                 >
                   <RankBadge
-                    level={projection().progression.level}
-                    rank={projection().rank}
+                    level={viewState().progression.level}
+                    rank={viewState().rank}
                     size="compact"
                   />
                 </button>
@@ -502,30 +505,30 @@ export function App(props: AppProps = {}) {
                   <button
                     class="hud-rank-button"
                     type="button"
-                    aria-label={`Open Progression details. Level ${numberFormatter.format(projection().progression.level)}, ${projection().rank}`}
+                    aria-label={`Open Progression details. Level ${numberFormatter.format(viewState().progression.level)}, ${viewState().rank}`}
                     onClick={openSettings}
                   >
-                    <b class="hud-level-label">LV {levelFormatter.format(projection().progression.level)} · </b>
-                    <b class="hud-rank-name">{projection().rank}</b>
+                    <b class="hud-level-label">LV {levelFormatter.format(viewState().progression.level)} · </b>
+                    <b class="hud-rank-name">{viewState().rank}</b>
                   </button>
-                  <span class="hud-xp">{numberFormatter.format(projection().progression.xpForCurrentLevel)} / {numberFormatter.format(projection().progression.xpForNextLevel)} XP</span>
+                  <span class="hud-xp">{numberFormatter.format(viewState().progression.xpForCurrentLevel)} / {numberFormatter.format(viewState().progression.xpForNextLevel)} XP</span>
                 </div>
                 <progress
-                  aria-label={`Level ${projection().progression.level}, ${projection().rank}: ${projection().progression.xpForCurrentLevel} of ${projection().progression.xpForNextLevel} XP`}
-                  aria-valuetext={`${projection().progression.xpForCurrentLevel} of ${projection().progression.xpForNextLevel} XP at level ${projection().progression.level}, ${projection().rank}`}
-                  max={projection().progression.xpForNextLevel}
-                  value={projection().progression.xpForCurrentLevel}
+                  aria-label={`Level ${viewState().progression.level}, ${viewState().rank}: ${viewState().progression.xpForCurrentLevel} of ${viewState().progression.xpForNextLevel} XP`}
+                  aria-valuetext={`${viewState().progression.xpForCurrentLevel} of ${viewState().progression.xpForNextLevel} XP at level ${viewState().progression.level}, ${viewState().rank}`}
+                  max={viewState().progression.xpForNextLevel}
+                  value={viewState().progression.xpForCurrentLevel}
                 />
                 <div class="hud-side">
                   <button class="settings-trigger" type="button" onClick={openSettings}>Settings</button>
-                  <p class="hud-capacity">Active {numberFormatter.format(projection().activeTodos.length)} / {numberFormatter.format(projection().activeCapacity)}</p>
-                  <Show when={projection().rewardHud.link ?? projection().rewardHud.combo}>
+                  <p class="hud-capacity">Active {numberFormatter.format(viewState().activeTodos.length)} / {numberFormatter.format(viewState().activeCapacity)}</p>
+                  <Show when={viewState().rewardHud.link ?? viewState().rewardHud.combo}>
                     <p class="hud-reward-state">
-                      {projection().rewardHud.link === "ready"
+                      {viewState().rewardHud.link === "ready"
                         ? "LINK READY"
-                        : projection().rewardHud.link === "active"
+                        : viewState().rewardHud.link === "active"
                           ? "LINK ACTIVE"
-                          : `COMBO ${projection().rewardHud.combo?.current}/${projection().rewardHud.combo?.target}`}
+                          : `COMBO ${viewState().rewardHud.combo?.current}/${viewState().rewardHud.combo?.target}`}
                     </p>
                   </Show>
                 </div>
@@ -535,13 +538,13 @@ export function App(props: AppProps = {}) {
                 <section class="active-bay">
                   <div class="section-heading">
                     <h2 id="active-bay-heading">Active Bay</h2>
-                    <span aria-label={`${projection().activeTodos.length} active tasks out of ${projection().activeCapacity}`}>
-                      {projection().activeTodos.length} / {projection().activeCapacity}
+                    <span aria-label={`${viewState().activeTodos.length} active tasks out of ${viewState().activeCapacity}`}>
+                      {viewState().activeTodos.length} / {viewState().activeCapacity}
                     </span>
                   </div>
-                  <Show when={projection().activeTodos.length > 0} fallback={<p class="empty-state">No active tasks. Add one when you are ready.</p>}>
+                  <Show when={viewState().activeTodos.length > 0} fallback={<p class="empty-state">No active tasks. Add one when you are ready.</p>}>
                     <TodoList
-                      items={projection().activeTodos}
+                      items={viewState().activeTodos}
                       editState={editState()}
                       optimisticStatuses={optimisticStatuses()}
                       pendingCompletionIds={pendingCompletionIds()}
@@ -557,7 +560,7 @@ export function App(props: AppProps = {}) {
                 </section>
 
                 <BrowseSection
-                  count={projection().standbyCount}
+                  count={viewState().standbyCount}
                   emptyCopy="No tasks in Standby."
                   hasMore={standbyHasMore()}
                   items={standbyItems()}
@@ -576,11 +579,11 @@ export function App(props: AppProps = {}) {
                   onLoadMore={() => void loadPage("standby", true)}
                   onSaveEdit={(id) => void saveEdit(id)}
                   onStartEdit={startEdit}
-                  onToggle={() => toggleBrowse("standby", projection().standbyCount)}
+                  onToggle={() => toggleBrowse("standby", viewState().standbyCount)}
                   onToggleTodo={(todo) => void toggleTodo(todo)}
                 />
                 <BrowseSection
-                  count={projection().completedCount}
+                  count={viewState().completedCount}
                   emptyCopy="No completed tasks yet."
                   hasMore={completedHasMore()}
                   items={completedItems()}
@@ -599,7 +602,7 @@ export function App(props: AppProps = {}) {
                   onLoadMore={() => void loadPage("completed", true)}
                   onSaveEdit={(id) => void saveEdit(id)}
                   onStartEdit={startEdit}
-                  onToggle={() => toggleBrowse("completed", projection().completedCount)}
+                  onToggle={() => toggleBrowse("completed", viewState().completedCount)}
                   onToggleTodo={(todo) => void toggleTodo(todo)}
                 />
               </div>
@@ -645,7 +648,7 @@ export function App(props: AppProps = {}) {
       </Show>
 
       <SettingsDialog
-        projection={state().kind === "ready" ? (state() as ReadyState).projection : null}
+        viewState={state().kind === "ready" ? (state() as ReadyState).viewState : null}
         setDialog={(dialog) => { settingsDialog = dialog; }}
         onClose={returnSettingsFocus}
         onRequestErase={openEraseDialog}
@@ -676,7 +679,7 @@ export function App(props: AppProps = {}) {
 
 function completionFeedback(
   result: CompletionMutationSuccess,
-  previousProjection: AppProjection,
+  previousViewState: ApplicationViewState,
 ): string {
   if (result.action === "reopened") return "TASK REOPENED · XP RETAINED";
   if (result.alreadyCredited || !result.award) return "TASK COMPLETE · ALREADY CREDITED";
@@ -688,13 +691,13 @@ function completionFeedback(
   if (result.award.comboBonus > 0) {
     parts.push(`COMBO +${numberFormatter.format(result.award.comboBonus)}`);
   }
-  if (result.projection.rank !== previousProjection.rank) {
-    parts.push(`RANK ${result.projection.rank.toLocaleUpperCase()}`);
-  } else if (result.projection.progression.level > previousProjection.progression.level) {
-    parts.push(`LEVEL ${numberFormatter.format(result.projection.progression.level)}`);
+  if (result.applicationViewState.rank !== previousViewState.rank) {
+    parts.push(`RANK ${result.applicationViewState.rank.toLocaleUpperCase()}`);
+  } else if (result.applicationViewState.progression.level > previousViewState.progression.level) {
+    parts.push(`LEVEL ${numberFormatter.format(result.applicationViewState.progression.level)}`);
   }
-  if (result.projection.activeCapacity > previousProjection.activeCapacity) {
-    parts.push(`CAPACITY ${numberFormatter.format(result.projection.activeCapacity)}`);
+  if (result.applicationViewState.activeCapacity > previousViewState.activeCapacity) {
+    parts.push(`CAPACITY ${numberFormatter.format(result.applicationViewState.activeCapacity)}`);
   }
   if (result.promotedTodoIds.length > 0) {
     const count = result.promotedTodoIds.length;

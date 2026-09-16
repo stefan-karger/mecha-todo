@@ -34,7 +34,8 @@ test("awards every milestone once and re-completes with the latest order", async
     }
     const reopened = await repository.setTodoCompleted(todoIds[0], false);
     const recompleted = await repository.setTodoCompleted(todoIds[0], true);
-    const projection = await repository.getProjection();
+    const applicationViewState = await repository.getApplicationViewState();
+    const completedPage = await repository.getTodoPage("completed");
     repository.close();
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.deleteDatabase(name);
@@ -58,7 +59,8 @@ test("awards every milestone once and re-completes with the latest order", async
       ),
       reopened,
       recompleted,
-      projection,
+      applicationViewState,
+      completedPage,
     };
   }, repositoryModulePath);
 
@@ -96,8 +98,10 @@ test("awards every milestone once and re-completes with the latest order", async
     alreadyCredited: true,
     todo: { id: "todo-1", status: "completed", creationOrder: 0, completionOrder: 21 },
   });
-  expect(result.projection.lifetimeXp).toBe(230);
-  expect(result.projection.completedTodos.items[0]).toMatchObject({
+  expect(result.recompleted.applicationViewState).not.toHaveProperty("completedTodos");
+  expect(result.recompleted.applicationViewState).not.toHaveProperty("lifetimeXp");
+  expect(result.applicationViewState.progression.lifetimeXp).toBe(230);
+  expect(result.completedPage.items[0]).toMatchObject({
     id: "todo-1",
     completionOrder: 21,
   });
@@ -139,7 +143,7 @@ test("retains deleted award history for the next local day's LINK", async ({ pag
         return secondTodo;
       }
       const linkedCompletion = await repository.setTodoCompleted(secondTodo.todo.id, true);
-      const projection = await repository.getProjection();
+      const applicationViewState = await repository.getApplicationViewState();
 
       const inspection = await databaseModule.openVersionedDatabase({ name });
       if (!inspection.ok) {
@@ -154,7 +158,7 @@ test("retains deleted award history for the next local day's LINK", async ({ pag
         request.onerror = () => reject(request.error);
       });
 
-      return { firstCompletion, linkedCompletion, projection, awards };
+      return { firstCompletion, linkedCompletion, applicationViewState, awards };
     },
     { databasePath: databaseModulePath, repositoryPath: repositoryModulePath },
   );
@@ -168,7 +172,7 @@ test("retains deleted award history for the next local day's LINK", async ({ pag
     award: { dayKey: "2026-09-15", dailyOrdinal: 1, linkBonus: 5, totalXp: 15 },
     xpGained: 15,
   });
-  expect(result.projection.lifetimeXp).toBe(25);
+  expect(result.applicationViewState.progression.lifetimeXp).toBe(25);
   expect(result.awards).toHaveLength(2);
   expect(result.awards.some((award: Record<string, unknown>) => "text" in award)).toBe(false);
 });
@@ -210,16 +214,16 @@ test("reopen may leave Active Bay above capacity", async ({ page }) => {
   expect(result.completed).toMatchObject({
     ok: true,
     promotedTodoIds: ["todo-9"],
-    projection: { activeTodos: expect.any(Array), activeCapacity: 8 },
+    applicationViewState: { activeTodos: expect.any(Array), activeCapacity: 8 },
   });
-  expect(result.completed.projection.activeTodos).toHaveLength(8);
+  expect(result.completed.applicationViewState.activeTodos).toHaveLength(8);
   expect(result.reopened).toMatchObject({
     ok: true,
     action: "reopened",
-    projection: { activeCapacity: 8 },
+    applicationViewState: { activeCapacity: 8 },
   });
-  expect(result.reopened.projection.activeTodos).toHaveLength(9);
-  expect(result.reopened.projection.lifetimeXp).toBe(10);
+  expect(result.reopened.applicationViewState.activeTodos).toHaveLength(9);
+  expect(result.reopened.applicationViewState.progression.lifetimeXp).toBe(10);
 });
 
 test("fills every available slot from the oldest Standby todos", async ({ page }) => {
@@ -292,9 +296,9 @@ test("fills every available slot from the oldest Standby todos", async ({ page }
     ok: true,
     todo: { id: "standby-5", status: "completed" },
     promotedTodoIds: ["standby-0", "standby-1", "standby-2", "standby-3", "standby-4"],
-    projection: { activeCapacity: 8, standbyTodos: { items: [] } },
+    applicationViewState: { activeCapacity: 8, standbyCount: 0 },
   });
-  expect(result.projection.activeTodos.map((todo: { id: string }) => todo.id)).toEqual([
+  expect(result.applicationViewState.activeTodos.map((todo: { id: string }) => todo.id)).toEqual([
     "active-0",
     "active-1",
     "active-2",
@@ -305,7 +309,7 @@ test("fills every available slot from the oldest Standby todos", async ({ page }
     "standby-4",
   ]);
   expect(
-    result.projection.activeTodos
+    result.applicationViewState.activeTodos
       .filter((todo: { id: string }) => todo.id.startsWith("standby-"))
       .map((todo: { updatedAt: number }) => todo.updatedAt),
   ).toEqual([100, 100, 100, 100, 100]);
@@ -344,12 +348,12 @@ test("does not promote Standby when Active Bay is already at capacity", async ({
     ok: true,
     todo: { id: "todo-9", status: "completed" },
     promotedTodoIds: [],
-    projection: {
+    applicationViewState: {
       activeTodos: expect.any(Array),
-      standbyTodos: { items: [{ id: "todo-10", status: "standby" }] },
+      standbyCount: 1,
     },
   });
-  expect(result.projection.activeTodos).toHaveLength(8);
+  expect(result.applicationViewState.activeTodos).toHaveLength(8);
 });
 
 test("same-todo and different-todo races preserve award uniqueness", async ({ page }) => {

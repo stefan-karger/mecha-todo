@@ -281,28 +281,26 @@ async function mountLongRank(page: Page, todoText: string): Promise<void> {
       updatedAt: 0,
       completedAt: null,
     };
-    const projection = {
+    const applicationViewState = {
       activeTodos: [todo],
-      standbyTodos: { items: [], hasMore: false, nextCursor: null },
-      completedTodos: { items: [], hasMore: false, nextCursor: null },
       standbyCount: 0,
       completedCount: 0,
-      lifetimeXp: 1,
       progression: {
         level,
-        currentLevelThreshold: 0,
-        nextLevelThreshold: 2,
+        lifetimeXp: 1,
+        currentLevelXp: 0,
+        nextLevelXp: 2,
         xpForCurrentLevel: 1,
         xpForNextLevel: 1,
+        progress: 1,
       },
       rank,
       activeCapacity: 16,
       rewardHud: { link: null, combo: null },
     };
     mountApp({
-      initialize: async () => ({ ok: true, projection }),
-      getProjection: async () => projection,
-      getSummaryProjection: async () => projection,
+      initialize: async () => ({ ok: true, applicationViewState }),
+      getApplicationViewState: async () => applicationViewState,
       getTodoPage: async () => ({ items: [], hasMore: false, nextCursor: null }),
       addTodo: async () => { throw new Error("Not used"); },
       editTodo: async () => { throw new Error("Not used"); },

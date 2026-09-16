@@ -4,7 +4,7 @@ const databaseModulePath = "http://127.0.0.1:4174/db.js";
 const repositoryModulePath = "http://127.0.0.1:4174/repository.js";
 const startupModulePath = "http://127.0.0.1:4174/startup.js";
 
-test("validates and rebuilds safe metadata before returning the authoritative projection", async ({
+test("validates and rebuilds safe metadata before returning the application view state", async ({
   page,
 }) => {
   await page.goto("/");
@@ -67,6 +67,7 @@ test("validates and rebuilds safe metadata before returning the authoritative pr
       });
       const settledSynchronously = settled;
       const startup = await startupPromise;
+      const completedPage = await repository.getTodoPage("completed");
 
       const inspection = await databaseModule.openVersionedDatabase({ name });
       if (!inspection.ok) {
@@ -77,7 +78,7 @@ test("validates and rebuilds safe metadata before returning the authoritative pr
       repository.close();
       await deleteDatabase(name);
 
-      return { settledSynchronously, startup, metadata };
+      return { settledSynchronously, startup, completedPage, metadata };
 
       function deleteDatabase(databaseName: string): Promise<void> {
         return new Promise((resolve, reject) => {
@@ -93,14 +94,19 @@ test("validates and rebuilds safe metadata before returning the authoritative pr
   expect(result.settledSynchronously).toBe(false);
   expect(result.startup).toMatchObject({
     ok: true,
-    projection: {
+    applicationViewState: {
       activeTodos: [],
-      completedTodos: { items: [{ id: "stored-todo", text: "Stored task" }] },
-      lifetimeXp: 10,
-      progression: { level: 1 },
+      completedCount: 1,
+      progression: { level: 1, lifetimeXp: 10 },
       rank: "Cadet",
       activeCapacity: 8,
     },
+  });
+  expect(result.startup.applicationViewState).not.toHaveProperty("standbyTodos");
+  expect(result.startup.applicationViewState).not.toHaveProperty("completedTodos");
+  expect(result.startup.applicationViewState).not.toHaveProperty("lifetimeXp");
+  expect(result.completedPage).toMatchObject({
+    items: [{ id: "stored-todo", text: "Stored task" }],
   });
   expect(result.metadata).toEqual([
     {
@@ -365,7 +371,7 @@ test("Retry reads the same records again and succeeds only after an external cor
   expect(result.beforeCorrection.text).toBe("Invalid  spacing");
   expect(result.retried).toMatchObject({
     ok: true,
-    projection: { activeTodos: [{ id: "retry-todo", text: "Valid spacing" }] },
+    applicationViewState: { activeTodos: [{ id: "retry-todo", text: "Valid spacing" }] },
   });
 });
 
@@ -391,7 +397,8 @@ test("cancelled erasure changes nothing and confirmed erasure is atomic", async 
       localStorage.setItem("mecha-todo:composer-draft:v1", "unfinished draft");
 
       const cancelled = await repository.eraseLocalData({ confirmed: false });
-      const afterCancellation = await repository.getProjection();
+      const afterCancellation = await repository.getApplicationViewState();
+      const afterCancellationCompletedPage = await repository.getTodoPage("completed");
       const rollbackConnection = await databaseModule.openVersionedDatabase({ name });
       if (!rollbackConnection.ok) return rollbackConnection;
       const rolledBack = await eraseDatabaseContents(rollbackConnection.database, -1);
@@ -419,7 +426,16 @@ test("cancelled erasure changes nothing and confirmed erasure is atomic", async 
         request.onerror = () => reject(request.error);
       });
 
-      return { cancelled, afterCancellation, rolledBack, afterRollback, erased, fresh, draft };
+      return {
+        cancelled,
+        afterCancellation,
+        afterCancellationCompletedPage,
+        rolledBack,
+        afterRollback,
+        erased,
+        fresh,
+        draft,
+      };
     },
     {
       databasePath: databaseModulePath,
@@ -430,8 +446,11 @@ test("cancelled erasure changes nothing and confirmed erasure is atomic", async 
 
   expect(result.cancelled).toEqual({ ok: false, category: "cancelled" });
   expect(result.afterCancellation).toMatchObject({
-    completedTodos: { items: [{ id: "erase-todo", text: "Keep until confirmed" }] },
-    lifetimeXp: 10,
+    completedCount: 1,
+    progression: { lifetimeXp: 10 },
+  });
+  expect(result.afterCancellationCompletedPage).toMatchObject({
+    items: [{ id: "erase-todo", text: "Keep until confirmed" }],
   });
   expect(result.rolledBack).toEqual({ ok: false, category: "erase-transaction-failed" });
   expect(result.afterRollback.todos).toHaveLength(1);
@@ -448,12 +467,11 @@ test("cancelled erasure changes nothing and confirmed erasure is atomic", async 
   ]);
   expect(result.erased).toMatchObject({
     ok: true,
-    projection: {
+    applicationViewState: {
       activeTodos: [],
-      standbyTodos: { items: [] },
-      completedTodos: { items: [] },
-      lifetimeXp: 0,
-      progression: { level: 0 },
+      standbyCount: 0,
+      completedCount: 0,
+      progression: { level: 0, lifetimeXp: 0 },
       rank: "Cadet",
     },
   });
@@ -526,7 +544,11 @@ test("confirmed erasure recreates the database after an unrecoverable open failu
   });
   expect(result.erased).toMatchObject({
     ok: true,
-    projection: { activeTodos: [], lifetimeXp: 0, progression: { level: 0 }, rank: "Cadet" },
+    applicationViewState: {
+      activeTodos: [],
+      progression: { level: 0, lifetimeXp: 0 },
+      rank: "Cadet",
+    },
   });
   expect(result.stores).toEqual(["completionAwards", "meta", "todos"]);
   expect(result.metadata).toEqual([

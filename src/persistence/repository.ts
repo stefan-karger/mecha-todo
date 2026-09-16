@@ -39,23 +39,15 @@ export type TodoPage = Readonly<{
   nextCursor: TodoPageCursor | null;
 }>;
 
-export type ProjectionQuery = Readonly<{
-  standbyAfter?: TodoPageCursor;
-  completedBefore?: TodoPageCursor;
-}>;
-
 export type RewardHudState = Readonly<{
   link: "ready" | "active" | null;
   combo: Readonly<{ current: 4 | 9 | 14 | 19; target: 5 | 10 | 15 | 20 }> | null;
 }>;
 
-export type AppProjection = Readonly<{
+export type ApplicationViewState = Readonly<{
   activeTodos: TodoRecord[];
-  standbyTodos: TodoPage;
-  completedTodos: TodoPage;
   standbyCount: number;
   completedCount: number;
-  lifetimeXp: number;
   progression: Progression;
   rank: string;
   activeCapacity: number;
@@ -63,7 +55,7 @@ export type AppProjection = Readonly<{
 }>;
 
 export type StartupResult =
-  | Readonly<{ ok: true; projection: AppProjection }>
+  | Readonly<{ ok: true; applicationViewState: ApplicationViewState }>
   | Readonly<{
       ok: false;
       category: "blocked";
@@ -90,7 +82,7 @@ export type LocalDataTechnicalCategory =
   | "unsafe-counter"
   | "inconsistent-records"
   | "metadata-rebuild-failed"
-  | "projection-failed"
+  | "application-view-state-failed"
   | "erase-transaction-failed"
   | "delete-blocked"
   | "delete-failed"
@@ -99,7 +91,7 @@ export type LocalDataTechnicalCategory =
 export type EraseConfirmation = Readonly<{ confirmed: boolean }>;
 
 export type EraseLocalDataResult =
-  | Readonly<{ ok: true; projection: AppProjection }>
+  | Readonly<{ ok: true; applicationViewState: ApplicationViewState }>
   | Readonly<{ ok: false; category: "cancelled" }>
   | Readonly<{
       ok: false;
@@ -111,7 +103,7 @@ export type EraseLocalDataResult =
 export type MutationSuccess = Readonly<{
   ok: true;
   todo: TodoRecord;
-  projection: AppProjection;
+  applicationViewState: ApplicationViewState;
 }>;
 
 type ValidationFailure = Readonly<{
@@ -147,7 +139,7 @@ export type CompletionMutationSuccess = Readonly<{
   xpGained: number;
   alreadyCredited: boolean;
   promotedTodoIds: string[];
-  projection: AppProjection;
+  applicationViewState: ApplicationViewState;
 }>;
 
 export type CompletionMutationResult =
@@ -160,7 +152,7 @@ export type DeleteMutationSuccess = Readonly<{
   deletedTodo: TodoRecord;
   retainedAward: boolean;
   promotedTodoIds: string[];
-  projection: AppProjection;
+  applicationViewState: ApplicationViewState;
 }>;
 
 export type DeleteMutationResult =
@@ -169,9 +161,8 @@ export type DeleteMutationResult =
   | WriteFailure;
 
 export interface AppRepository {
-  initialize(options?: Readonly<{ summaryOnly?: boolean }>): Promise<StartupResult>;
-  getProjection(query?: ProjectionQuery): Promise<AppProjection>;
-  getSummaryProjection(): Promise<AppProjection>;
+  initialize(): Promise<StartupResult>;
+  getApplicationViewState(): Promise<ApplicationViewState>;
   getTodoPage(status: "standby" | "completed", cursor?: TodoPageCursor): Promise<TodoPage>;
   addTodo(text: string): Promise<MutationResult>;
   editTodo(id: string, text: string): Promise<MutationResult>;
@@ -191,13 +182,15 @@ type RepositoryOptions = Readonly<{
   clearDraft?: () => void;
 }>;
 
-type CommittedCompletionMutation = Omit<CompletionMutationSuccess, "projection">;
+type CommittedCompletionMutation = Omit<CompletionMutationSuccess, "applicationViewState">;
 
-type ProjectionTransaction = IDBPTransaction<
+type ApplicationViewStateTransaction = IDBPTransaction<
   MechaTodoDatabase,
   ("todos" | "completionAwards" | "meta")[],
   "readonly"
 >;
+
+type TodoPageTransaction = IDBPTransaction<MechaTodoDatabase, ["todos"], "readonly">;
 
 type MutationTransaction = IDBPTransaction<
   MechaTodoDatabase,
@@ -230,20 +223,16 @@ export class IndexedDbAppRepository implements AppRepository {
     this.#clearDraft = clearDraft;
   }
 
-  async initialize(
-    { summaryOnly = false }: Readonly<{ summaryOnly?: boolean }> = {},
-  ): Promise<StartupResult> {
+  async initialize(): Promise<StartupResult> {
     if (this.#database) {
       try {
         return {
           ok: true,
-          projection: summaryOnly
-            ? await this.getSummaryProjection()
-            : await this.getProjection(),
+          applicationViewState: await this.getApplicationViewState(),
         };
       } catch {
         this.close();
-        return localDataProblem("projection-failed");
+        return localDataProblem("application-view-state-failed");
       }
     }
 
@@ -273,17 +262,15 @@ export class IndexedDbAppRepository implements AppRepository {
     try {
       return {
         ok: true,
-        projection: summaryOnly
-          ? await this.getSummaryProjection()
-          : await this.getProjection(),
+        applicationViewState: await this.getApplicationViewState(),
       };
     } catch {
       this.close();
-      return localDataProblem("projection-failed");
+      return localDataProblem("application-view-state-failed");
     }
   }
 
-  async getSummaryProjection(): Promise<AppProjection> {
+  async getApplicationViewState(): Promise<ApplicationViewState> {
     const database = this.#requireDatabase();
     const transaction = database.transaction(
       ["todos", "completionAwards", "meta"],
@@ -315,67 +302,8 @@ export class IndexedDbAppRepository implements AppRepository {
 
     return Object.freeze({
       activeTodos,
-      standbyTodos: emptyTodoPage(),
-      completedTodos: emptyTodoPage(),
       standbyCount,
       completedCount,
-      lifetimeXp: stats.lifetimeXp,
-      progression,
-      rank: rankForLevel(progression.level),
-      activeCapacity: activeCapacity(progression.level),
-      rewardHud,
-    });
-  }
-
-  async getProjection(query: ProjectionQuery = {}): Promise<AppProjection> {
-    const database = this.#requireDatabase();
-    const transaction = database.transaction(
-      ["todos", "completionAwards", "meta"],
-      "readonly",
-    );
-    const todoIndex = transaction.objectStore("todos").index("by-status-creation-order");
-    const activeTodosPromise = todoIndex.getAll(statusRange("active"));
-    const standbyTodosPromise = readStandbyPage(transaction, query.standbyAfter);
-    const completedTodosPromise = readCompletedPage(transaction, query.completedBefore);
-    const standbyCountPromise = todoIndex.count(statusRange("standby"));
-    const completedCountPromise = todoIndex.count(statusRange("completed"));
-    const statsPromise = transaction.objectStore("meta").get("derived-stats");
-    const rewardHudPromise = readRewardHudState(
-      transaction,
-      this.#calendar(this.#calendarClock()),
-    );
-    const [
-      activeTodos,
-      standbyTodos,
-      completedTodos,
-      standbyCount,
-      completedCount,
-      stats,
-      rewardHud,
-    ] = await Promise.all([
-      activeTodosPromise,
-      standbyTodosPromise,
-      completedTodosPromise,
-      standbyCountPromise,
-      completedCountPromise,
-      statsPromise,
-      rewardHudPromise,
-    ]);
-    await transaction.done;
-
-    if (!stats || stats.key !== "derived-stats") {
-      throw new Error(LIST_CHANGED_MESSAGE);
-    }
-
-    const progression = progressionForTotalXp(stats.lifetimeXp);
-
-    return Object.freeze({
-      activeTodos,
-      standbyTodos,
-      completedTodos,
-      standbyCount,
-      completedCount,
-      lifetimeXp: stats.lifetimeXp,
       progression,
       rank: rankForLevel(progression.level),
       activeCapacity: activeCapacity(progression.level),
@@ -387,10 +315,7 @@ export class IndexedDbAppRepository implements AppRepository {
     status: "standby" | "completed",
     cursor?: TodoPageCursor,
   ): Promise<TodoPage> {
-    const transaction = this.#requireDatabase().transaction(
-      ["todos", "completionAwards", "meta"],
-      "readonly",
-    );
+    const transaction = this.#requireDatabase().transaction("todos", "readonly");
     const page =
       status === "standby"
         ? await readStandbyPage(transaction, cursor)
@@ -445,7 +370,7 @@ export class IndexedDbAppRepository implements AppRepository {
 
       this.#clearDraft();
 
-      return { ok: true, todo, projection: await this.getProjection() };
+      return { ok: true, todo, applicationViewState: await this.getApplicationViewState() };
     } catch {
       return writeFailed();
     }
@@ -477,7 +402,7 @@ export class IndexedDbAppRepository implements AppRepository {
       await todos.put(todo);
       await transaction.done;
 
-      return { ok: true, todo, projection: await this.getProjection() };
+      return { ok: true, todo, applicationViewState: await this.getApplicationViewState() };
     } catch {
       return writeFailed();
     }
@@ -493,7 +418,10 @@ export class IndexedDbAppRepository implements AppRepository {
           return committed;
         }
 
-        return { ...committed, projection: await this.getProjection() };
+        return {
+          ...committed,
+          applicationViewState: await this.getApplicationViewState(),
+        };
       } catch (error) {
         if (isConstraintError(error) && attempt < maximumAttempts) {
           continue;
@@ -539,7 +467,7 @@ export class IndexedDbAppRepository implements AppRepository {
         deletedTodo: current,
         retainedAward: retainedAward !== undefined,
         promotedTodoIds,
-        projection: await this.getProjection(),
+        applicationViewState: await this.getApplicationViewState(),
       };
     } catch {
       return writeFailed();
@@ -562,7 +490,11 @@ export class IndexedDbAppRepository implements AppRepository {
       await todos.add(snapshot);
       await transaction.done;
 
-      return { ok: true, todo: snapshot, projection: await this.getProjection() };
+      return {
+        ok: true,
+        todo: snapshot,
+        applicationViewState: await this.getApplicationViewState(),
+      };
     } catch (error) {
       return isConstraintError(error) ? changedInAnotherTab() : writeFailed();
     }
@@ -604,11 +536,11 @@ export class IndexedDbAppRepository implements AppRepository {
     this.#database = database;
     this.#clearDraft();
     try {
-      const projection = await this.getProjection();
-      return { ok: true, projection };
+      const applicationViewState = await this.getApplicationViewState();
+      return { ok: true, applicationViewState };
     } catch {
       this.close();
-      return eraseFailed("projection-failed");
+      return eraseFailed("application-view-state-failed");
     }
   }
 
@@ -823,7 +755,7 @@ async function promoteOldestStandbyTodos(
 }
 
 async function readRewardHudState(
-  transaction: ProjectionTransaction,
+  transaction: ApplicationViewStateTransaction,
   calendarDate: LocalCalendarDate,
 ): Promise<RewardHudState> {
   const awardIndex = transaction.objectStore("completionAwards").index("by-day-key");
@@ -853,7 +785,7 @@ async function readRewardHudState(
 }
 
 async function readStandbyPage(
-  transaction: ProjectionTransaction,
+  transaction: TodoPageTransaction,
   after?: TodoPageCursor,
 ): Promise<TodoPage> {
   const index = transaction.objectStore("todos").index("by-status-creation-order");
@@ -875,7 +807,7 @@ async function readStandbyPage(
 }
 
 async function readCompletedPage(
-  transaction: ProjectionTransaction,
+  transaction: TodoPageTransaction,
   before?: TodoPageCursor,
 ): Promise<TodoPage> {
   const index = transaction.objectStore("todos").index("by-status-completion-order");
@@ -911,10 +843,6 @@ function pageFromItems(
     nextCursor:
       hasMore && last && order !== null && order !== undefined ? { order, id: last.id } : null,
   });
-}
-
-function emptyTodoPage(): TodoPage {
-  return Object.freeze({ items: [], hasMore: false, nextCursor: null });
 }
 
 function changedInAnotherTab(): ChangedInAnotherTabFailure {

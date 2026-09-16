@@ -27,6 +27,7 @@ test("validates before writing and persists clock-independent creation order", a
 
       const reloadedRepository = new IndexedDbAppRepository({ databaseName: name });
       const reloaded = await reloadedRepository.initialize();
+      const reloadedStandbyPage = await reloadedRepository.getTodoPage("standby");
       reloadedRepository.close();
       await new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase(name);
@@ -52,6 +53,7 @@ test("validates before writing and persists clock-independent creation order", a
         invalid,
         addedTodos,
         reloaded,
+        reloadedStandbyPage,
       };
     },
     repositoryModulePath,
@@ -79,10 +81,14 @@ test("validates before writing and persists clock-independent creation order", a
   expect(result.addedTodos.slice(8).every((todo) => todo.status === "standby")).toBe(true);
   expect(result.reloaded).toMatchObject({
     ok: true,
-    projection: {
+    applicationViewState: {
       activeTodos: result.addedTodos.slice(0, 8),
-      standbyTodos: { items: result.addedTodos.slice(8), hasMore: false },
+      standbyCount: 2,
     },
+  });
+  expect(result.reloadedStandbyPage).toMatchObject({
+    items: result.addedTodos.slice(8),
+    hasMore: false,
   });
 });
 
@@ -146,7 +152,10 @@ test("derives placement capacity from authoritative Lifetime XP", async ({ page 
 
   expect(result.startup).toMatchObject({
     ok: true,
-    projection: { lifetimeXp: 80, activeCapacity: 9, progression: { level: 5 } },
+    applicationViewState: {
+      activeCapacity: 9,
+      progression: { level: 5, lifetimeXp: 80 },
+    },
   });
   expect(result.statuses).toEqual([
     "active",
@@ -235,15 +244,25 @@ test("pages Standby oldest first and Completed newest first", async ({ page }) =
       if (!startup.ok) {
         return startup;
       }
-      const first = startup.projection;
-      const second = await repository.getProjection({
-        standbyAfter: first.standbyTodos.nextCursor ?? undefined,
-        completedBefore: first.completedTodos.nextCursor ?? undefined,
-      });
-      const third = await repository.getProjection({
-        standbyAfter: second.standbyTodos.nextCursor ?? undefined,
-        completedBefore: second.completedTodos.nextCursor ?? undefined,
-      });
+      const viewState = startup.applicationViewState;
+      const firstStandby = await repository.getTodoPage("standby");
+      const firstCompleted = await repository.getTodoPage("completed");
+      const secondStandby = await repository.getTodoPage(
+        "standby",
+        firstStandby.nextCursor ?? undefined,
+      );
+      const secondCompleted = await repository.getTodoPage(
+        "completed",
+        firstCompleted.nextCursor ?? undefined,
+      );
+      const thirdStandby = await repository.getTodoPage(
+        "standby",
+        secondStandby.nextCursor ?? undefined,
+      );
+      const thirdCompleted = await repository.getTodoPage(
+        "completed",
+        secondCompleted.nextCursor ?? undefined,
+      );
       repository.close();
       await new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase(name);
@@ -251,19 +270,26 @@ test("pages Standby oldest first and Completed newest first", async ({ page }) =
         request.onerror = () => reject(request.error);
       });
 
-      const summarize = (projection: typeof first) => ({
-        active: projection.activeTodos.map((todo: { id: string }) => todo.id),
-        standby: projection.standbyTodos.items.map((todo: { id: string }) => todo.id),
-        standbyHasMore: projection.standbyTodos.hasMore,
-        completed: projection.completedTodos.items.map((todo: { id: string }) => todo.id),
-        completedHasMore: projection.completedTodos.hasMore,
+      const summarize = (
+        standbyPage: typeof firstStandby,
+        completedPage: typeof firstCompleted,
+      ) => ({
+        standby: standbyPage.items.map((todo: { id: string }) => todo.id),
+        standbyHasMore: standbyPage.hasMore,
+        completed: completedPage.items.map((todo: { id: string }) => todo.id),
+        completedHasMore: completedPage.hasMore,
       });
-      return { first: summarize(first), second: summarize(second), third: summarize(third) };
+      return {
+        active: viewState.activeTodos.map((todo: { id: string }) => todo.id),
+        first: summarize(firstStandby, firstCompleted),
+        second: summarize(secondStandby, secondCompleted),
+        third: summarize(thirdStandby, thirdCompleted),
+      };
     },
     { databasePath: databaseModulePath, repositoryPath: repositoryModulePath },
   );
 
-  expect(result.first.active).toEqual(["active-0", "active-1", "active-2"]);
+  expect(result.active).toEqual(["active-0", "active-1", "active-2"]);
   expect(result.first.standby).toEqual(
     Array.from({ length: 20 }, (_, index) => `standby-${String(index).padStart(2, "0")}`),
   );
@@ -321,7 +347,7 @@ test("uses last successful write wins and reports a missing target", async ({ pa
         firstRepository.editTodo(added.todo.id, " First edit "),
         secondRepository.editTodo(added.todo.id, "Last edit"),
       ]);
-      const afterEdits = await firstRepository.getProjection();
+      const afterEdits = await firstRepository.getApplicationViewState();
 
       const directConnection = await databaseModule.openVersionedDatabase({ name });
       if (!directConnection.ok) {
@@ -331,7 +357,7 @@ test("uses last successful write wins and reports a missing target", async ({ pa
       directConnection.database.close();
 
       const missing = await firstRepository.editTodo(added.todo.id, "Must not return");
-      const afterMissing = await firstRepository.getProjection();
+      const afterMissing = await firstRepository.getApplicationViewState();
       firstRepository.close();
       secondRepository.close();
       await new Promise<void>((resolve, reject) => {

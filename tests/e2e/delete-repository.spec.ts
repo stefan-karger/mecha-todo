@@ -50,7 +50,7 @@ test("deletes every status, restores one Active snapshot, and retains XP", async
 
       const completed = await repository.setTodoCompleted(todoIds[1], true);
       const completedDelete = await repository.deleteTodo(todoIds[1]);
-      const beforeReload = await repository.getProjection();
+      const beforeReload = await repository.getApplicationViewState();
 
       const inspection = await databaseModule.openVersionedDatabase({ name });
       if (!inspection.ok) {
@@ -93,20 +93,20 @@ test("deletes every status, restores one Active snapshot, and retains XP", async
     deletedTodo: { id: "todo-1", status: "active", creationOrder: 0 },
     retainedAward: false,
     promotedTodoIds: ["todo-9"],
-    projection: { lifetimeXp: 0 },
+    applicationViewState: { progression: { lifetimeXp: 0 } },
   });
   expect(
-    result.activeDelete.projection.activeTodos.find(
+    result.activeDelete.applicationViewState.activeTodos.find(
       (todo: { id: string }) => todo.id === "todo-9",
     ),
   ).toMatchObject({ status: "active", updatedAt: 110 });
   expect(result.restored).toMatchObject({
     ok: true,
     todo: { id: "todo-1", status: "active", creationOrder: 0 },
-    projection: { activeCapacity: 8 },
+    applicationViewState: { activeCapacity: 8 },
   });
-  expect(result.restored.projection.activeTodos).toHaveLength(9);
-  expect(result.restored.projection.activeTodos.some((todo: { id: string }) => todo.id === "todo-9")).toBe(
+  expect(result.restored.applicationViewState.activeTodos).toHaveLength(9);
+  expect(result.restored.applicationViewState.activeTodos.some((todo: { id: string }) => todo.id === "todo-9")).toBe(
     true,
   );
   expect(result.undoPendingAfterRestore).toBe(false);
@@ -122,18 +122,18 @@ test("deletes every status, restores one Active snapshot, and retains XP", async
     deletedTodo: { id: "todo-2", status: "completed", completionOrder: 0 },
     retainedAward: true,
     promotedTodoIds: [],
-    projection: { lifetimeXp: 10 },
+    applicationViewState: { progression: { lifetimeXp: 10 } },
   });
-  expect(result.beforeReload.lifetimeXp).toBe(10);
+  expect(result.beforeReload.progression.lifetimeXp).toBe(10);
   expect(result.awards).toEqual([
     expect.objectContaining({ todoId: "todo-2", totalXp: 10 }),
   ]);
   expect(result.reloaded).toMatchObject({
     ok: true,
-    projection: { lifetimeXp: 10, activeCapacity: 8 },
+    applicationViewState: { progression: { lifetimeXp: 10 }, activeCapacity: 8 },
   });
   expect(
-    result.reloaded.projection.activeTodos.some((todo: { id: string }) => todo.id === "todo-2"),
+    result.reloaded.applicationViewState.activeTodos.some((todo: { id: string }) => todo.id === "todo-2"),
   ).toBe(false);
 });
 
@@ -175,7 +175,7 @@ test("rejects Undo when another tab recreated the ID and reports missing deletes
           repository.restoreDeletedTodo(snapshot),
       );
       const missingDelete = await repository.deleteTodo("missing-todo");
-      const projection = await repository.getProjection();
+      const applicationViewState = await repository.getApplicationViewState();
       repository.close();
       await new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase(name);
@@ -187,7 +187,7 @@ test("rejects Undo when another tab recreated the ID and reports missing deletes
         rejected,
         undoPending: undo.hasPendingUndo,
         missingDelete,
-        projection,
+        applicationViewState,
       };
     },
     {
@@ -205,8 +205,8 @@ test("rejects Undo when another tab recreated the ID and reports missing deletes
   expect(result.rejected).toEqual(changedResult);
   expect(result.undoPending).toBe(false);
   expect(result.missingDelete).toEqual(changedResult);
-  expect(result.projection.activeTodos).toHaveLength(1);
-  expect(result.projection.lifetimeXp).toBe(0);
+  expect(result.applicationViewState.activeTodos).toHaveLength(1);
+  expect(result.applicationViewState.progression.lifetimeXp).toBe(0);
 });
 
 test("reload discards the page-owned Undo snapshot", async ({ page }) => {

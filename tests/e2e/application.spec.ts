@@ -223,10 +223,7 @@ async function renderWithStartup(
 
     const repository = {
       initialize,
-      getProjection: async () => {
-        throw new Error("Not used");
-      },
-      getSummaryProjection: async () => {
+      getApplicationViewState: async () => {
         throw new Error("Not used");
       },
       getTodoPage: async () => ({ items: [], hasMore: false, nextCursor: null }),

@@ -337,25 +337,24 @@ async function mountDelayedRepository(
     });
     const first = todo("first", "First task");
     const second = todo("second", "Second task");
-    const projection = (activeTodos: Array<typeof first>) => ({
+    const applicationViewState = (activeTodos: Array<typeof first>) => ({
       activeTodos,
-      standbyTodos: { items: [], hasMore: false, nextCursor: null },
-      completedTodos: { items: [], hasMore: false, nextCursor: null },
       standbyCount: 0,
       completedCount: 0,
-      lifetimeXp: 0,
       progression: {
         level: 0,
-        currentLevelThreshold: 0,
-        nextLevelThreshold: 10,
+        lifetimeXp: 0,
+        currentLevelXp: 0,
+        nextLevelXp: 10,
         xpForCurrentLevel: 0,
         xpForNextLevel: 10,
+        progress: 0,
       },
       rank: "Cadet",
       activeCapacity: 8,
       rewardHud: { link: null, combo: null },
     });
-    let current = projection([first, second]);
+    let current = applicationViewState([first, second]);
     let resolveMutation: (() => void) | undefined;
     const delayed = new Promise<unknown>((resolve) => {
       resolveMutation = () => {
@@ -367,13 +366,13 @@ async function mountDelayedRepository(
           });
           return;
         }
-        current = projection([second]);
+        current = applicationViewState([second]);
         resolve({
           ok: true,
           deletedTodo: first,
           retainedAward: false,
           promotedTodoIds: [],
-          projection: current,
+          applicationViewState: current,
         });
       };
     });
@@ -381,9 +380,8 @@ async function mountDelayedRepository(
       resolveMutation?.();
 
     mountApp({
-      initialize: async () => ({ ok: true, projection: current }),
-      getProjection: async () => current,
-      getSummaryProjection: async () => current,
+      initialize: async () => ({ ok: true, applicationViewState: current }),
+      getApplicationViewState: async () => current,
       getTodoPage: async () => ({ items: [], hasMore: false, nextCursor: null }),
       addTodo: async () => { throw new Error("Not used"); },
       editTodo: async () => { throw new Error("Not used"); },
@@ -420,29 +418,28 @@ async function mountReopenRefreshRepository(page: Page, failRefresh = false): Pr
     };
     const progression = {
       level: 1,
-      currentLevelThreshold: 10,
-      nextLevelThreshold: 30,
+      lifetimeXp: 10,
+      currentLevelXp: 10,
+      nextLevelXp: 30,
       xpForCurrentLevel: 0,
       xpForNextLevel: 20,
+      progress: 0,
     };
     const pageOf = (items: Array<typeof completed>) => ({
       items,
       hasMore: false,
       nextCursor: null,
     });
-    const projection = (isReopened: boolean) => ({
+    const applicationViewState = (isReopened: boolean) => ({
       activeTodos: isReopened ? [reopened] : [],
-      standbyTodos: pageOf([]),
-      completedTodos: pageOf([]),
       standbyCount: 0,
       completedCount: isReopened ? 0 : 1,
-      lifetimeXp: 10,
       progression,
       rank: "Cadet",
       activeCapacity: 8,
       rewardHud: { link: null, combo: null },
     });
-    let current = projection(false);
+    let current = applicationViewState(false);
     let completedPageReads = 0;
     let resolvePageRefresh: (() => void) | undefined;
     const delayedRefresh = new Promise<void>((resolve) => {
@@ -452,9 +449,8 @@ async function mountReopenRefreshRepository(page: Page, failRefresh = false): Pr
       resolvePageRefresh?.();
 
     mountApp({
-      initialize: async () => ({ ok: true, projection: current }),
-      getProjection: async () => current,
-      getSummaryProjection: async () => current,
+      initialize: async () => ({ ok: true, applicationViewState: current }),
+      getApplicationViewState: async () => current,
       getTodoPage: async (status: "standby" | "completed") => {
         if (status !== "completed") return pageOf([]);
         completedPageReads += 1;
@@ -466,7 +462,7 @@ async function mountReopenRefreshRepository(page: Page, failRefresh = false): Pr
       addTodo: async () => { throw new Error("Not used"); },
       editTodo: async () => { throw new Error("Not used"); },
       setTodoCompleted: async () => {
-        current = projection(true);
+        current = applicationViewState(true);
         return {
           ok: true,
           action: "reopened",
@@ -476,7 +472,7 @@ async function mountReopenRefreshRepository(page: Page, failRefresh = false): Pr
           xpGained: 0,
           alreadyCredited: false,
           promotedTodoIds: [],
-          projection: current,
+          applicationViewState: current,
         };
       },
       deleteTodo: async () => { throw new Error("Not used"); },

@@ -2,12 +2,12 @@ import { Show } from "solid-js";
 import { APPLICATION_VERSION } from "../config/product";
 import { REWARD_RULES_V1 } from "../config/rules-v1";
 import { DATABASE_VERSION } from "../persistence/migrations";
-import type { AppProjection } from "../persistence/repository";
+import type { ApplicationViewState } from "../persistence/repository";
 import { trapDialogTab } from "./dialog-focus";
 import { RankBadge } from "./RankBadge";
 
 type SettingsDialogProps = Readonly<{
-  projection: AppProjection | null;
+  viewState: ApplicationViewState | null;
   setDialog: (dialog: HTMLDialogElement) => void;
   onClose: () => void;
   onRequestErase: (opener: HTMLButtonElement) => void;
@@ -35,23 +35,23 @@ export function SettingsDialog(props: SettingsDialogProps) {
           </button>
         </header>
 
-        <Show when={props.projection} keyed>
-          {(projection) => (
+        <Show when={props.viewState} keyed>
+          {(viewState) => (
             <section class="progression-details" aria-labelledby="progression-title">
               <div class="progression-badge-slot">
                 <RankBadge
-                  level={projection.progression.level}
-                  rank={projection.rank}
+                  level={viewState.progression.level}
+                  rank={viewState.rank}
                   size="large"
                 />
               </div>
               <div class="progression-copy">
                 <h3 id="progression-title">Progression</h3>
-                <p class="detailed-rank">{projection.rank}</p>
+                <p class="detailed-rank">{viewState.rank}</p>
                 <dl class="progression-stats">
-                  <div><dt>Level</dt><dd>{numberFormatter.format(projection.progression.level)}</dd></div>
-                  <div><dt>Lifetime XP</dt><dd>{numberFormatter.format(projection.lifetimeXp)}</dd></div>
-                  <div><dt>Current level</dt><dd>{numberFormatter.format(projection.progression.xpForCurrentLevel)} / {numberFormatter.format(projection.progression.xpForNextLevel)} XP</dd></div>
+                  <div><dt>Level</dt><dd>{numberFormatter.format(viewState.progression.level)}</dd></div>
+                  <div><dt>Lifetime XP</dt><dd>{numberFormatter.format(viewState.progression.lifetimeXp)}</dd></div>
+                  <div><dt>Current level</dt><dd>{numberFormatter.format(viewState.progression.xpForCurrentLevel)} / {numberFormatter.format(viewState.progression.xpForNextLevel)} XP</dd></div>
                   <div><dt>Rules version</dt><dd>{REWARD_RULES_V1.rulesVersion}</dd></div>
                 </dl>
               </div>
