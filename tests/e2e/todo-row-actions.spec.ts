@@ -316,6 +316,7 @@ async function mountDelayedRepository(
       },
       rank: "Cadet",
       activeCapacity: 8,
+      rewardHud: { link: null, combo: null },
     });
     let current = projection([first, second]);
     let resolveMutation: (() => void) | undefined;

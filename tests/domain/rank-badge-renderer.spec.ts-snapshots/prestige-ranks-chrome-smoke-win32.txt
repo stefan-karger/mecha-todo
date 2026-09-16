@@ -1,0 +1,27 @@
+[
+  {
+    "level": 45,
+    "rank": "Prime Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><path d=\"M14 0h4v5h-4z\"/></g></svg>"
+  },
+  {
+    "level": 80,
+    "rank": "Eternal Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><path d=\"M2 2h28v28H2zm2 2v24h24V4z\" fill-rule=\"evenodd\"/></g></svg>"
+  },
+  {
+    "level": 85,
+    "rank": "Prime-Prime Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><path d=\"M14 0h4v5h-4z\"/><path d=\"M14 0h4v5h-4z\"/></g></svg>"
+  },
+  {
+    "level": 725,
+    "rank": "Vanguard-Prime-Prime Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><path d=\"M0 2h7v3H3v4H0zm32 0h-7v3h4v4h3z\"/><path d=\"M14 0h4v5h-4z\"/><rect x=\"5\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"8\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"11\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"14\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"17\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"20\" y=\"24\" width=\"2\" height=\"3\"/><rect x=\"23\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"26\" y=\"26\" width=\"2\" height=\"1\"/></g></svg>"
+  },
+  {
+    "level": 5000,
+    "rank": "Prime-Omega-Apex-Eternal Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><path d=\"M14 0h4v5h-4z\"/><path d=\"M3 22h4v5h5v4H3zm26 0h-4v5h-5v4h9z\"/><rect x=\"5\" y=\"24\" width=\"2\" height=\"3\"/><rect x=\"8\" y=\"24\" width=\"2\" height=\"3\"/><rect x=\"11\" y=\"24\" width=\"2\" height=\"3\"/><rect x=\"14\" y=\"24\" width=\"2\" height=\"3\"/><rect x=\"17\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"20\" y=\"24\" width=\"2\" height=\"3\"/><rect x=\"23\" y=\"26\" width=\"2\" height=\"1\"/><rect x=\"26\" y=\"26\" width=\"2\" height=\"1\"/></g></svg>"
+  }
+]

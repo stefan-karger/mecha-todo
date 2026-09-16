@@ -44,6 +44,11 @@ export type ProjectionQuery = Readonly<{
   completedBefore?: TodoPageCursor;
 }>;
 
+export type RewardHudState = Readonly<{
+  link: "ready" | "active" | null;
+  combo: Readonly<{ current: 4 | 9 | 14 | 19; target: 5 | 10 | 15 | 20 }> | null;
+}>;
+
 export type AppProjection = Readonly<{
   activeTodos: TodoRecord[];
   standbyTodos: TodoPage;
@@ -54,6 +59,7 @@ export type AppProjection = Readonly<{
   progression: Progression;
   rank: string;
   activeCapacity: number;
+  rewardHud: RewardHudState;
 }>;
 
 export type StartupResult =
@@ -179,6 +185,7 @@ export interface AppRepository {
 type RepositoryOptions = Readonly<{
   databaseName?: string;
   clock?: () => number;
+  calendarClock?: () => number;
   idFactory?: () => string;
   calendar?: (timestamp: number) => LocalCalendarDate;
   clearDraft?: () => void;
@@ -195,6 +202,7 @@ type ProjectionTransaction = IDBPTransaction<
 export class IndexedDbAppRepository implements AppRepository {
   readonly #databaseName: string;
   readonly #clock: () => number;
+  readonly #calendarClock: () => number;
   readonly #idFactory: () => string;
   readonly #calendar: (timestamp: number) => LocalCalendarDate;
   readonly #clearDraft: () => void;
@@ -203,12 +211,14 @@ export class IndexedDbAppRepository implements AppRepository {
   constructor({
     databaseName = DATABASE_NAME,
     clock = Date.now,
+    calendarClock = Date.now,
     idFactory = createTodoId,
     calendar = (timestamp) => localCalendarDate(new Date(timestamp)),
     clearDraft = clearComposerDraft,
   }: RepositoryOptions = {}) {
     this.#databaseName = databaseName;
     this.#clock = clock;
+    this.#calendarClock = calendarClock;
     this.#idFactory = idFactory;
     this.#calendar = calendar;
     this.#clearDraft = clearDraft;
@@ -269,17 +279,25 @@ export class IndexedDbAppRepository implements AppRepository {
 
   async getSummaryProjection(): Promise<AppProjection> {
     const database = this.#requireDatabase();
-    const transaction = database.transaction(["todos", "meta"], "readonly");
+    const transaction = database.transaction(
+      ["todos", "completionAwards", "meta"],
+      "readonly",
+    );
     const todoIndex = transaction.objectStore("todos").index("by-status-creation-order");
     const activeTodosPromise = todoIndex.getAll(statusRange("active"));
     const standbyCountPromise = todoIndex.count(statusRange("standby"));
     const completedCountPromise = todoIndex.count(statusRange("completed"));
     const statsPromise = transaction.objectStore("meta").get("derived-stats");
-    const [activeTodos, standbyCount, completedCount, stats] = await Promise.all([
+    const rewardHudPromise = readRewardHudState(
+      transaction,
+      this.#calendar(this.#calendarClock()),
+    );
+    const [activeTodos, standbyCount, completedCount, stats, rewardHud] = await Promise.all([
       activeTodosPromise,
       standbyCountPromise,
       completedCountPromise,
       statsPromise,
+      rewardHudPromise,
     ]);
     await transaction.done;
 
@@ -299,6 +317,7 @@ export class IndexedDbAppRepository implements AppRepository {
       progression,
       rank: rankForLevel(progression.level),
       activeCapacity: activeCapacity(progression.level),
+      rewardHud,
     });
   }
 
@@ -315,6 +334,10 @@ export class IndexedDbAppRepository implements AppRepository {
     const standbyCountPromise = todoIndex.count(statusRange("standby"));
     const completedCountPromise = todoIndex.count(statusRange("completed"));
     const statsPromise = transaction.objectStore("meta").get("derived-stats");
+    const rewardHudPromise = readRewardHudState(
+      transaction,
+      this.#calendar(this.#calendarClock()),
+    );
     const [
       activeTodos,
       standbyTodos,
@@ -322,6 +345,7 @@ export class IndexedDbAppRepository implements AppRepository {
       standbyCount,
       completedCount,
       stats,
+      rewardHud,
     ] = await Promise.all([
       activeTodosPromise,
       standbyTodosPromise,
@@ -329,6 +353,7 @@ export class IndexedDbAppRepository implements AppRepository {
       standbyCountPromise,
       completedCountPromise,
       statsPromise,
+      rewardHudPromise,
     ]);
     await transaction.done;
 
@@ -348,6 +373,7 @@ export class IndexedDbAppRepository implements AppRepository {
       progression,
       rank: rankForLevel(progression.level),
       activeCapacity: activeCapacity(progression.level),
+      rewardHud,
     });
   }
 
@@ -797,6 +823,36 @@ export class IndexedDbAppRepository implements AppRepository {
 
 function statusRange(status: TodoStatus): IDBKeyRange {
   return IDBKeyRange.bound([status], [status, []]);
+}
+
+async function readRewardHudState(
+  transaction: ProjectionTransaction,
+  calendarDate: LocalCalendarDate,
+): Promise<RewardHudState> {
+  const awardIndex = transaction.objectStore("completionAwards").index("by-day-key");
+  const [todayAwards, yesterdayAward] = await Promise.all([
+    awardIndex.getAll(toDayKey(calendarDate)),
+    awardIndex.get(previousDayKey(calendarDate)),
+  ]);
+  const current = todayAwards.length;
+  const comboTargets = new Map<number, 5 | 10 | 15 | 20>([
+    [4, 5],
+    [9, 10],
+    [14, 15],
+    [19, 20],
+  ]);
+  const target = comboTargets.get(current);
+
+  return Object.freeze({
+    link: todayAwards.some((award) => award.linkBonus > 0)
+      ? "active"
+      : current === 0 && yesterdayAward
+        ? "ready"
+        : null,
+    combo: target
+      ? Object.freeze({ current: current as 4 | 9 | 14 | 19, target })
+      : null,
+  });
 }
 
 async function readStandbyPage(

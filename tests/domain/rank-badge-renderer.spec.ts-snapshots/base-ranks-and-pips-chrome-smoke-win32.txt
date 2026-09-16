@@ -1,0 +1,67 @@
+[
+  {
+    "level": 0,
+    "rank": "Cadet",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"cadet-chevron\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M7 9h5l4 5 4-5h5l-9 12z\"/></g></svg>"
+  },
+  {
+    "level": 5,
+    "rank": "Trooper",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"trooper-twin-chevron\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M6 6h5l5 6 5-6h5L16 19zM8 19h5l3 3 3-3h5l-8 8z\"/></g></svg>"
+  },
+  {
+    "level": 10,
+    "rank": "Sergeant",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"sergeant-stepped-chevron\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M5 6h6v4h3v4h4v-4h3V6h6v8h-4v4h-4v4h-6v-4H9v-4H5z\"/></g></svg>"
+  },
+  {
+    "level": 15,
+    "rank": "Lieutenant",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"lieutenant-diamond\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M16 3 27 16 16 29 5 16zm0 6-6 7 6 7 6-7z\" fill-rule=\"evenodd\"/></g></svg>"
+  },
+  {
+    "level": 20,
+    "rank": "Captain",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"captain-double-diamond\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M10 4 19 13 10 22 1 13zm12 6 7 7-7 7-7-7zm-12 1-2 2 2 2 2-2zm12 5-1 1 1 1 1-1z\"/></g></svg>"
+  },
+  {
+    "level": 25,
+    "rank": "Major",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"major-winged-diamond\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"m16 5 8 11-8 11-8-11zm0 6-4 5 4 5 4-5zM1 9l8 3-3 4 3 4-8 3 3-7zm30 0-3 7 3 7-8-3 3-4-3-4z\" fill-rule=\"evenodd\"/></g></svg>"
+  },
+  {
+    "level": 30,
+    "rank": "Colonel",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"colonel-shield-bars\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M7 3h18v15l-9 10-9-10zm5 5v10h8V8zM1 7h4v4H1zm0 7h4v4H1zm26-7h4v4h-4zm0 7h4v4h-4z\" fill-rule=\"evenodd\"/></g></svg>"
+  },
+  {
+    "level": 35,
+    "rank": "General",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"general-star-wing\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"m16 2 3 8 9-2-5 8 7 6-10-1-4 9-4-9-10 1 7-6-5-8 9 2zM0 12h7v4H0zm25 0h7v4h-7z\"/></g></svg>"
+  },
+  {
+    "level": 40,
+    "rank": "Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/></g></svg>"
+  },
+  {
+    "level": 41,
+    "rank": "Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"1\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><rect x=\"10\" y=\"29\" width=\"2\" height=\"2\"/></g></svg>"
+  },
+  {
+    "level": 42,
+    "rank": "Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"2\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><rect x=\"10\" y=\"29\" width=\"2\" height=\"2\"/><rect x=\"14\" y=\"29\" width=\"2\" height=\"2\"/></g></svg>"
+  },
+  {
+    "level": 43,
+    "rank": "Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"3\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><rect x=\"10\" y=\"29\" width=\"2\" height=\"2\"/><rect x=\"14\" y=\"29\" width=\"2\" height=\"2\"/><rect x=\"18\" y=\"29\" width=\"2\" height=\"2\"/></g></svg>"
+  },
+  {
+    "level": 44,
+    "rank": "Marshal",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"marshal-heavy-crest\" data-pips=\"4\"><g fill=\"currentColor\"><path d=\"M4 3h7l5 5 5-5h7v15l-5 9H9l-5-9zm7 7v10h10V10l-5 4zM0 7h3v15H0zm29 0h3v15h-3z\" fill-rule=\"evenodd\"/><rect x=\"10\" y=\"29\" width=\"2\" height=\"2\"/><rect x=\"14\" y=\"29\" width=\"2\" height=\"2\"/><rect x=\"18\" y=\"29\" width=\"2\" height=\"2\"/><rect x=\"22\" y=\"29\" width=\"2\" height=\"2\"/></g></svg>"
+  }
+]

@@ -4,11 +4,14 @@ import { PRODUCT_NAME } from "../config/product";
 import { loadComposerDraft, saveComposerDraft } from "../persistence/composer-draft";
 import type { TodoRecord, TodoStatus } from "../persistence/models";
 import { DeleteUndoController } from "./delete-undo";
+import { RankBadge } from "./RankBadge";
+import { SettingsDialog } from "./SettingsDialog";
 import {
   IndexedDbAppRepository,
   TODO_PAGE_SIZE,
   type AppProjection,
   type AppRepository,
+  type CompletionMutationSuccess,
   type LocalDataTechnicalCategory,
   type TodoPageCursor,
 } from "../persistence/repository";
@@ -28,6 +31,11 @@ type BrowseStatus = "standby" | "completed";
 type EditState = Readonly<{ id: string; draft: string; error: string; saving: boolean }>;
 
 const COMPLETION_HOLD_MS = 240;
+const numberFormatter = new Intl.NumberFormat();
+const levelFormatter = new Intl.NumberFormat(undefined, {
+  minimumIntegerDigits: 3,
+  useGrouping: false,
+});
 
 export function App(props: AppProps = {}) {
   const repository = props.repository ?? new IndexedDbAppRepository();
@@ -62,6 +70,8 @@ export function App(props: AppProps = {}) {
 
   let composerInput: HTMLInputElement | undefined;
   let eraseDialog: HTMLDialogElement | undefined;
+  let settingsDialog: HTMLDialogElement | undefined;
+  let settingsOpener: HTMLButtonElement | undefined;
 
   const openApplication = async (): Promise<void> => {
     setState({ kind: "opening" });
@@ -227,6 +237,7 @@ export function App(props: AppProps = {}) {
     if (pendingCompletionIds().has(todo.id)) return;
     const completed = todo.status !== "completed";
     const optimisticStatus: TodoStatus = completed ? "completed" : "active";
+    const previousProjection = (untrack(state) as ReadyState).projection;
 
     setPendingCompletionIds((current) => new Set(current).add(todo.id));
     setOptimisticStatuses((current) => ({ ...current, [todo.id]: optimisticStatus }));
@@ -248,13 +259,7 @@ export function App(props: AppProps = {}) {
       return;
     }
 
-    setFeedback(
-      result.action === "reopened"
-        ? "TASK REOPENED · XP RETAINED"
-        : result.alreadyCredited
-          ? "TASK COMPLETE · ALREADY CREDITED"
-          : "TASK COMPLETE",
-    );
+    setFeedback(completionFeedback(result, previousProjection));
 
     if (completed && result.changed) {
       await new Promise<void>((resolve) => globalThis.setTimeout(resolve, COMPLETION_HOLD_MS));
@@ -353,6 +358,17 @@ export function App(props: AppProps = {}) {
     void openApplication();
   };
 
+  const openSettings: JSX.EventHandler<HTMLButtonElement, MouseEvent> = (event) => {
+    settingsOpener = event.currentTarget;
+    if (!settingsDialog?.open) settingsDialog?.showModal();
+  };
+
+  const returnSettingsFocus = (): void => {
+    const opener = settingsOpener;
+    settingsOpener = undefined;
+    queueMicrotask(() => opener?.focus());
+  };
+
   const confirmErase = async (): Promise<void> => {
     if (erasing()) return;
     setErasing(true);
@@ -367,13 +383,14 @@ export function App(props: AppProps = {}) {
     }
 
     eraseDialog?.close();
+    if (settingsDialog?.open) settingsDialog.close();
     deleteUndo.clear();
     setEditState(null);
     resetBrowseState();
     setDraft("");
     saveComposerDraft("");
     setComposerError("");
-    setFeedback("Local data erased.");
+    setFeedback("LOCAL DATA ERASED");
     setState({ kind: "ready", projection: result.projection });
   };
 
@@ -420,17 +437,48 @@ export function App(props: AppProps = {}) {
           return (
             <main class="task-system" aria-labelledby="active-bay-heading">
               <section class="hud" aria-label="Progression status">
-                <div class="rank-mark" aria-hidden="true"><span>//</span></div>
+                <button
+                  class="badge-control"
+                  type="button"
+                  aria-label={`Open Progression details for ${projection().rank}`}
+                  onClick={openSettings}
+                >
+                  <RankBadge
+                    level={projection().progression.level}
+                    rank={projection().rank}
+                    size="compact"
+                  />
+                </button>
                 <div class="hud-level">
-                  <p>LV {String(projection().progression.level).padStart(3, "0")} · {projection().rank}</p>
-                  <span>{projection().progression.xpForCurrentLevel} / {projection().progression.xpForNextLevel} XP</span>
+                  <button
+                    class="hud-rank-button"
+                    type="button"
+                    aria-label={`Open Progression details. Level ${numberFormatter.format(projection().progression.level)}, ${projection().rank}`}
+                    onClick={openSettings}
+                  >
+                    <b class="hud-level-label">LV {levelFormatter.format(projection().progression.level)} · </b>
+                    <b class="hud-rank-name">{projection().rank}</b>
+                  </button>
+                  <span class="hud-xp">{numberFormatter.format(projection().progression.xpForCurrentLevel)} / {numberFormatter.format(projection().progression.xpForNextLevel)} XP</span>
                 </div>
                 <progress
                   aria-label={`Level ${projection().progression.level}, ${projection().rank}: ${projection().progression.xpForCurrentLevel} of ${projection().progression.xpForNextLevel} XP`}
                   max={projection().progression.xpForNextLevel}
                   value={projection().progression.xpForCurrentLevel}
                 />
-                <p class="hud-capacity">Active {projection().activeTodos.length} / {projection().activeCapacity}</p>
+                <div class="hud-side">
+                  <button class="settings-trigger" type="button" onClick={openSettings}>Settings</button>
+                  <p class="hud-capacity">Active {numberFormatter.format(projection().activeTodos.length)} / {numberFormatter.format(projection().activeCapacity)}</p>
+                  <Show when={projection().rewardHud.link ?? projection().rewardHud.combo}>
+                    <p class="hud-reward-state">
+                      {projection().rewardHud.link === "ready"
+                        ? "LINK READY"
+                        : projection().rewardHud.link === "active"
+                          ? "LINK ACTIVE"
+                          : `COMBO ${projection().rewardHud.combo?.current}/${projection().rewardHud.combo?.target}`}
+                    </p>
+                  </Show>
+                </div>
               </section>
 
               <section class="active-bay">
@@ -544,6 +592,13 @@ export function App(props: AppProps = {}) {
         })()}
       </Show>
 
+      <SettingsDialog
+        projection={state().kind === "ready" ? (state() as ReadyState).projection : null}
+        setDialog={(dialog) => { settingsDialog = dialog; }}
+        onClose={returnSettingsFocus}
+        onRequestErase={() => eraseDialog?.showModal()}
+      />
+
       <dialog class="erase-dialog" ref={eraseDialog} aria-labelledby="erase-title">
         <form method="dialog">
           <h2 id="erase-title">Erase local data?</h2>
@@ -558,6 +613,36 @@ export function App(props: AppProps = {}) {
       </dialog>
     </div>
   );
+}
+
+function completionFeedback(
+  result: CompletionMutationSuccess,
+  previousProjection: AppProjection,
+): string {
+  if (result.action === "reopened") return "TASK REOPENED · XP RETAINED";
+  if (result.alreadyCredited || !result.award) return "TASK COMPLETE · ALREADY CREDITED";
+
+  const parts = ["TASK COMPLETE", `+${numberFormatter.format(result.xpGained)} XP`];
+  if (result.award.linkBonus > 0) {
+    parts.push(`LINK +${numberFormatter.format(result.award.linkBonus)}`);
+  }
+  if (result.award.comboBonus > 0) {
+    parts.push(`COMBO +${numberFormatter.format(result.award.comboBonus)}`);
+  }
+  if (result.projection.rank !== previousProjection.rank) {
+    parts.push(`RANK ${result.projection.rank.toLocaleUpperCase()}`);
+  } else if (result.projection.progression.level > previousProjection.progression.level) {
+    parts.push(`LEVEL ${numberFormatter.format(result.projection.progression.level)}`);
+  }
+  if (result.projection.activeCapacity > previousProjection.activeCapacity) {
+    parts.push(`CAPACITY ${numberFormatter.format(result.projection.activeCapacity)}`);
+  }
+  if (result.promotedTodoIds.length > 0) {
+    const count = result.promotedTodoIds.length;
+    parts.push(`${numberFormatter.format(count)} STANDBY ${count === 1 ? "TASK" : "TASKS"} PROMOTED`);
+  }
+
+  return parts.join(" · ");
 }
 
 type BrowseSectionProps = Readonly<{
