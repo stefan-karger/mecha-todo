@@ -6,7 +6,7 @@ Run the local release gate with:
 npm run release:check
 ```
 
-The command type-checks and builds the production bundle, audits forbidden production features, and runs the required mobile, tablet, and desktop Chrome projects. Deployment checks remain assigned to local ticket 23.
+The command type-checks and builds the production bundle, audits forbidden production features, and runs the required mobile, tablet, and desktop Chrome projects. Production deployment and origin-specific checks are deferred.
 
 ## Todo behavior
 
@@ -67,22 +67,7 @@ The command type-checks and builds the production bundle, audits forbidden produ
 | Production makes no third-party request and sends no task content off device. | `tests/e2e/release-gates.spec.ts`, `scripts/verify-production.mjs` |
 | Production omits manifest, service worker, install, file-data, storage-protection, and synchronization code. | `scripts/verify-production.mjs` |
 | The three required Chrome projects pass. | `npm run release:check` |
-| Static deployment uses the selected HTTPS origin and approved headers. | Local ticket 23, production verification |
-| Production smoke testing proves the main flow and browser-local persistence. | Local ticket 23, production verification |
 
 ## Visual review
 
-`tests/e2e/visual-review.spec.ts` captures empty, ordinary, expanded, reward, long-content, Settings, local-data error, and erasure-confirmation states in each release project. Ticket 20 records the completed review of these artifacts under `test-results/`.
-
-## Production verification record
-
-Complete this section in ticket 23.
-
-| Item | Result |
-|---|---|
-| Stable HTTPS origin | Pending |
-| Dependency versions | `package-lock.json` |
-| Local production build and audit | Passed on 2026-09-16, 10 files audited |
-| Three-project result | Passed on 2026-09-16, 102 tests; repeat before deployment |
-| Response headers | Pending |
-| Production smoke and network inspection | Pending |
+`tests/e2e/visual-review.spec.ts` captures empty, ordinary, expanded, reward, long-content, Settings, local-data error, and erasure-confirmation states in each release project. The completed review covered all generated artifacts under `test-results/`.

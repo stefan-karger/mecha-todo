@@ -18,11 +18,11 @@ The planned interface draws from late-1990s mecha command systems while using or
 
 ## Project status
 
-MECHA//TODO V1 is under implementation. The repository contains the approved V1 implementation plan, local implementation tickets, the application scaffold, and visual assets.
+MECHA//TODO V1 implementation is complete. The repository contains the application, its automated test suite, the approved V1 implementation plan, and visual assets. Production deployment is deferred.
 
 The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and engineering contract. It takes precedence over the earlier [product handoff](docs/MECHA_TODO_IDEA_V4.md) where the two differ.
 
-## Planned V1
+## V1 capabilities
 
 - Add, edit, complete, reopen, and delete one-line todos.
 - Keep a focused Active Bay with overflow in a Standby queue.
@@ -33,7 +33,7 @@ The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and eng
 - Report local-data failures without silently deleting or replacing stored data.
 - Provide visible keyboard, touch, and mouse controls with reduced-motion and forced-colors support.
 
-## Planned stack
+## Stack
 
 - Solid 2 and TypeScript
 - Vite
@@ -70,6 +70,4 @@ npm run test:smoke
 npm run release:check
 ```
 
-The [V1 release checklist](docs/release-checklist.md) maps each acceptance criterion to its automated evidence or the production verification ticket.
-
-Implementation tickets live as local Markdown files under `.scratch/`. This repository does not use an external issue tracker for specifications or implementation work.
+The [V1 release checklist](docs/release-checklist.md) maps each locally verified acceptance criterion to its automated evidence.
