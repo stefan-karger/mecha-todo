@@ -398,7 +398,6 @@ export function App(props: AppProps = {}) {
     <div class="app-shell">
       <header class="product-header">
         <h1>{PRODUCT_NAME}</h1>
-        <p>Your list is stored only in this browser.</p>
       </header>
 
       <Show when={state().kind === "opening"}>

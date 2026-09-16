@@ -17,6 +17,7 @@
   --color-text: #f5f1f8;
   --color-muted: #b7a9c2;
   --color-primary: #b86cff;
+  --color-progress: #45ff63;
   --color-status: #54ff73;
   --color-warning: #ffc857;
   --color-danger: #ff6b7a;
@@ -70,10 +71,6 @@ button {
 }
 
 .product-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 18px;
   padding: 0 0 15px;
   border-bottom: 1px solid var(--color-border);
 }
@@ -85,15 +82,6 @@ button {
   font-weight: 750;
   line-height: 1;
   letter-spacing: -0.06em;
-}
-
-.product-header p {
-  max-width: 32ch;
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.6875rem;
-  line-height: 1rem;
-  text-align: right;
 }
 
 .system-state {
@@ -291,7 +279,7 @@ button {
   border: 0;
   border-radius: 0;
   background: var(--color-border);
-  color: var(--color-primary);
+  color: var(--color-progress);
 }
 
 .hud progress::-webkit-progress-bar {
@@ -300,7 +288,7 @@ button {
 
 .hud progress::-webkit-progress-value,
 .hud progress::-moz-progress-bar {
-  background: var(--color-primary);
+  background: var(--color-progress);
 }
 
 .hud-side {
@@ -812,14 +800,6 @@ button {
 }
 
 @media (max-width: 440px) {
-  .product-header {
-    align-items: flex-start;
-  }
-
-  .product-header p {
-    max-width: 19ch;
-  }
-
   .hud {
     grid-template-columns: 44px minmax(0, 1fr);
     grid-template-areas:
