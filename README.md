@@ -67,6 +67,9 @@ Run the current verification commands with:
 npm run typecheck
 npm run build
 npm run test:smoke
+npm run release:check
 ```
+
+The [V1 release checklist](docs/release-checklist.md) maps each acceptance criterion to its automated evidence or the production verification ticket.
 
 Implementation tickets live as local Markdown files under `.scratch/`. This repository does not use an external issue tracker for specifications or implementation work.

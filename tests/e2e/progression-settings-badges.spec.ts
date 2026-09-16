@@ -98,9 +98,12 @@ test("renders hidden crisp SVG badges at compact and detail sizes with canonical
 test("shows Settings sections, confirms erasure, and manages desktop and mobile focus", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await page.getByRole("textbox", { name: "New task" }).fill("Keep until erased");
+  const composer = page.getByRole("textbox", { name: "New task" });
+  await composer.fill("Keep until erased");
   await page.getByRole("button", { name: "Add task" }).click();
-  await page.getByRole("textbox", { name: "New task" }).fill("unfinished draft");
+  await expect(page.getByRole("button", { name: "Keep until erased", exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("");
+  await composer.fill("unfinished draft");
 
   const settingsButton = page.getByRole("button", { name: "Settings" });
   await settingsButton.click();

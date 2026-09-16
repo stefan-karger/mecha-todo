@@ -3,6 +3,7 @@ import { APPLICATION_VERSION } from "../config/product";
 import { REWARD_RULES_V1 } from "../config/rules-v1";
 import { DATABASE_VERSION } from "../persistence/migrations";
 import type { AppProjection } from "../persistence/repository";
+import { trapDialogTab } from "./dialog-focus";
 import { RankBadge } from "./RankBadge";
 
 type SettingsDialogProps = Readonly<{
@@ -21,6 +22,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       ref={(dialog) => props.setDialog(dialog)}
       aria-labelledby="settings-title"
       onClose={props.onClose}
+      onKeyDown={(event) => trapDialogTab(event, event.currentTarget)}
     >
       <div class="settings-layout">
         <header class="settings-header">

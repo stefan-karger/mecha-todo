@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:domain": "playwright test tests/domain",
-    "test:smoke": "playwright test tests/e2e/shell.spec.ts"
+    "test:smoke": "playwright test tests/e2e/shell.spec.ts --project=desktop-chrome",
+    "release:check": "npm run build && node scripts/verify-production.mjs && playwright test"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "5.3.0",

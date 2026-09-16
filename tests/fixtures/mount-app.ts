@@ -5,6 +5,7 @@ import type { AppRepository } from "../../src/persistence/repository";
 export function mountApp(repository: AppRepository): void {
   const root = document.getElementById("root");
   if (!root) throw new Error("Missing test root.");
-  root.replaceChildren();
-  render(() => App({ repository }), root);
+  const replacement = root.cloneNode(false) as HTMLElement;
+  root.replaceWith(replacement);
+  render(() => App({ repository }), replacement);
 }

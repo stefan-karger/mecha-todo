@@ -34,9 +34,11 @@
 
 html,
 body {
+  width: 100%;
   min-width: 320px;
   min-height: 100%;
   background: var(--color-bg);
+  overflow: hidden;
 }
 
 body {
@@ -62,15 +64,19 @@ button {
 }
 
 .app-shell {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 680px);
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   margin-inline: auto;
   padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow: hidden;
 }
 
 .product-header {
+  flex: 0 0 auto;
   padding: 0 0 15px;
   border-bottom: 1px solid var(--color-border);
 }
@@ -85,6 +91,8 @@ button {
 }
 
 .system-state {
+  flex: 1 1 auto;
+  min-height: 0;
   min-height: 300px;
   display: grid;
   place-content: center;
@@ -172,8 +180,10 @@ button {
 .task-system {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 84px);
+  flex: 1 1 auto;
+  min-height: 0;
   padding-top: 16px;
+  overflow: hidden;
 }
 
 .hud {
@@ -181,6 +191,7 @@ button {
   z-index: 10;
   top: 0;
   display: grid;
+  flex: 0 0 auto;
   grid-template-columns: 48px minmax(0, 1fr) auto;
   grid-template-areas:
     "badge level side"
@@ -238,25 +249,23 @@ button {
 }
 
 .hud-rank-button {
-  display: flex;
+  display: block;
   width: 100%;
   min-width: 0;
+  min-height: 44px;
   border: 0;
   padding: 0;
   background: transparent;
   color: var(--color-text);
-  overflow: hidden;
-  font-size: 1rem;
+  font-size: 1.125rem;
   font-weight: 700;
-  line-height: 1.25rem;
-  white-space: nowrap;
+  line-height: 1.375rem;
+  text-align: left;
   cursor: pointer;
 }
 
 .hud-rank-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   text-transform: uppercase;
 }
 
@@ -299,7 +308,8 @@ button {
 }
 
 .settings-trigger {
-  min-height: 24px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -328,6 +338,19 @@ button {
 
 .active-bay {
   padding-top: 24px;
+}
+
+.task-scroll-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.task-scroll-region:focus-visible {
+  outline-offset: -2px;
 }
 
 .section-heading {
@@ -391,6 +414,7 @@ button {
   width: 44px;
   min-height: 44px;
   border: 0;
+  border-right: 1px solid var(--color-border);
   padding: 0;
   background: transparent;
   color: var(--color-primary);
@@ -404,6 +428,11 @@ button {
 
 .todo-row--completed {
   color: var(--color-muted);
+}
+
+.todo-row--completed .todo-text {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 
 .todo-row--completed .todo-status {
@@ -452,6 +481,7 @@ button {
 .todo-delete {
   min-height: 44px;
   border: 0;
+  border-left: 1px solid var(--color-border);
   padding: 8px 12px;
   background: transparent;
   color: var(--color-danger);
@@ -513,6 +543,7 @@ button {
   position: sticky;
   z-index: 9;
   bottom: 0;
+  flex: 0 0 auto;
   margin-top: auto;
   background: var(--color-bg);
 }
@@ -628,6 +659,7 @@ button {
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: var(--color-bg);
+  overflow-y: auto;
 }
 
 .settings-layout {
@@ -799,6 +831,24 @@ button {
   }
 }
 
+@media (min-width: 1024px) {
+  .app-shell {
+    padding-block: 24px;
+  }
+
+  .task-system {
+    padding-top: 16px;
+  }
+
+  .active-bay {
+    padding-top: 18px;
+  }
+
+  .composer {
+    margin-top: 12px;
+  }
+}
+
 @media (max-width: 440px) {
   .hud {
     grid-template-columns: 44px minmax(0, 1fr);
@@ -863,6 +913,10 @@ button {
 }
 
 @media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight;
+  }
+
   .product-header,
   .hud,
   .section-heading,
@@ -875,11 +929,32 @@ button {
   .todo-edit input,
   .todo-status,
   .todo-delete,
-  .erase-dialog {
+  .erase-dialog,
+  .settings-dialog,
+  .progression-badge-slot,
+  .hud progress {
     border-color: CanvasText;
   }
 
   .rank-badge {
     color: Highlight;
+  }
+
+  .hud progress::-webkit-progress-bar {
+    background: Canvas;
+  }
+
+  .hud progress::-webkit-progress-value,
+  .hud progress::-moz-progress-bar {
+    background: Highlight;
+  }
+
+  .todo-row--completed,
+  .todo-row--completed .todo-status,
+  .todo-row--standby .todo-status,
+  .todo-delete,
+  .field-error,
+  .button--danger {
+    color: CanvasText;
   }
 }

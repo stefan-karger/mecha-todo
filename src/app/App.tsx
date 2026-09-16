@@ -4,6 +4,7 @@ import { PRODUCT_NAME } from "../config/product";
 import { loadComposerDraft, saveComposerDraft } from "../persistence/composer-draft";
 import type { TodoRecord, TodoStatus } from "../persistence/models";
 import { DeleteUndoController } from "./delete-undo";
+import { trapDialogTab } from "./dialog-focus";
 import { RankBadge } from "./RankBadge";
 import { SettingsDialog } from "./SettingsDialog";
 import {
@@ -70,6 +71,7 @@ export function App(props: AppProps = {}) {
 
   let composerInput: HTMLInputElement | undefined;
   let eraseDialog: HTMLDialogElement | undefined;
+  let eraseOpener: HTMLButtonElement | undefined;
   let settingsDialog: HTMLDialogElement | undefined;
   let settingsOpener: HTMLButtonElement | undefined;
 
@@ -222,6 +224,7 @@ export function App(props: AppProps = {}) {
       const error = result.category === "validation" ? result.validation.message : result.message;
       if (untrack(editState)?.id === id) {
         setEditState({ id, draft: current.draft, error, saving: false });
+        setFeedback(error);
         focusRowAction(id, "edit");
       }
       return;
@@ -326,8 +329,9 @@ export function App(props: AppProps = {}) {
     setAdding(false);
 
     if (!result.ok) {
-      if (result.category === "validation") setComposerError(result.validation.message);
-      else setFeedback(result.message);
+      const error = result.category === "validation" ? result.validation.message : result.message;
+      if (result.category === "validation") setComposerError(error);
+      setFeedback(error);
       queueMicrotask(() => composerInput?.focus());
       return;
     }
@@ -369,6 +373,19 @@ export function App(props: AppProps = {}) {
     queueMicrotask(() => opener?.focus());
   };
 
+  const openEraseDialog = (opener: HTMLButtonElement): void => {
+    eraseOpener = opener;
+    if (!eraseDialog?.open) eraseDialog?.showModal();
+  };
+
+  const returnEraseFocus = (): void => {
+    const opener = eraseOpener;
+    eraseOpener = undefined;
+    queueMicrotask(() => {
+      if (opener?.isConnected) opener.focus();
+    });
+  };
+
   const confirmErase = async (): Promise<void> => {
     if (erasing()) return;
     setErasing(true);
@@ -382,6 +399,7 @@ export function App(props: AppProps = {}) {
       return;
     }
 
+    eraseOpener = undefined;
     eraseDialog?.close();
     if (settingsDialog?.open) settingsDialog.close();
     deleteUndo.clear();
@@ -423,7 +441,7 @@ export function App(props: AppProps = {}) {
           </p>
           <div class="state-actions">
             <button class="button button--primary" type="button" onClick={retry}>Retry</button>
-            <button class="button button--danger" type="button" onClick={() => eraseDialog?.showModal()}>
+            <button class="button button--danger" type="button" onClick={(event) => openEraseDialog(event.currentTarget)}>
               Erase local data
             </button>
           </div>
@@ -462,6 +480,7 @@ export function App(props: AppProps = {}) {
                 </div>
                 <progress
                   aria-label={`Level ${projection().progression.level}, ${projection().rank}: ${projection().progression.xpForCurrentLevel} of ${projection().progression.xpForNextLevel} XP`}
+                  aria-valuetext={`${projection().progression.xpForCurrentLevel} of ${projection().progression.xpForNextLevel} XP at level ${projection().progression.level}, ${projection().rank}`}
                   max={projection().progression.xpForNextLevel}
                   value={projection().progression.xpForCurrentLevel}
                 />
@@ -480,76 +499,78 @@ export function App(props: AppProps = {}) {
                 </div>
               </section>
 
-              <section class="active-bay">
-                <div class="section-heading">
-                  <h2 id="active-bay-heading">Active Bay</h2>
-                  <span aria-label={`${projection().activeTodos.length} active tasks out of ${projection().activeCapacity}`}>
-                    {projection().activeTodos.length} / {projection().activeCapacity}
-                  </span>
-                </div>
-                <Show when={projection().activeTodos.length > 0} fallback={<p class="empty-state">No active tasks. Add one when you are ready.</p>}>
-                  <TodoList
-                    items={projection().activeTodos}
-                    editState={editState()}
-                    optimisticStatuses={optimisticStatuses()}
-                    pendingCompletionIds={pendingCompletionIds()}
-                    pendingDeleteIds={pendingDeleteIds()}
-                    onCancelEdit={cancelEdit}
-                    onChangeEditDraft={changeEditDraft}
-                    onDelete={(todo) => void deleteTodo(todo)}
-                    onSaveEdit={(id) => void saveEdit(id)}
-                    onStartEdit={startEdit}
-                    onToggle={(todo) => void toggleTodo(todo)}
-                  />
-                </Show>
-              </section>
+              <div class="task-scroll-region" tabindex="-1" role="region" aria-label="Task lists">
+                <section class="active-bay">
+                  <div class="section-heading">
+                    <h2 id="active-bay-heading">Active Bay</h2>
+                    <span aria-label={`${projection().activeTodos.length} active tasks out of ${projection().activeCapacity}`}>
+                      {projection().activeTodos.length} / {projection().activeCapacity}
+                    </span>
+                  </div>
+                  <Show when={projection().activeTodos.length > 0} fallback={<p class="empty-state">No active tasks. Add one when you are ready.</p>}>
+                    <TodoList
+                      items={projection().activeTodos}
+                      editState={editState()}
+                      optimisticStatuses={optimisticStatuses()}
+                      pendingCompletionIds={pendingCompletionIds()}
+                      pendingDeleteIds={pendingDeleteIds()}
+                      onCancelEdit={cancelEdit}
+                      onChangeEditDraft={changeEditDraft}
+                      onDelete={(todo) => void deleteTodo(todo)}
+                      onSaveEdit={(id) => void saveEdit(id)}
+                      onStartEdit={startEdit}
+                      onToggle={(todo) => void toggleTodo(todo)}
+                    />
+                  </Show>
+                </section>
 
-              <BrowseSection
-                count={projection().standbyCount}
-                emptyCopy="No tasks in Standby."
-                hasMore={standbyHasMore()}
-                items={standbyItems()}
-                loading={standbyLoading()}
-                moreLabel="Show 20 more"
-                open={standbyOpen()}
-                status="standby"
-                title="Standby"
-                editState={editState()}
-                optimisticStatuses={optimisticStatuses()}
-                pendingCompletionIds={pendingCompletionIds()}
-                pendingDeleteIds={pendingDeleteIds()}
-                onCancelEdit={cancelEdit}
-                onChangeEditDraft={changeEditDraft}
-                onDelete={(todo) => void deleteTodo(todo)}
-                onLoadMore={() => void loadPage("standby", true)}
-                onSaveEdit={(id) => void saveEdit(id)}
-                onStartEdit={startEdit}
-                onToggle={() => toggleBrowse("standby", projection().standbyCount)}
-                onToggleTodo={(todo) => void toggleTodo(todo)}
-              />
-              <BrowseSection
-                count={projection().completedCount}
-                emptyCopy="No completed tasks yet."
-                hasMore={completedHasMore()}
-                items={completedItems()}
-                loading={completedLoading()}
-                moreLabel="Show 20 older"
-                open={completedOpen()}
-                status="completed"
-                title="Completed"
-                editState={editState()}
-                optimisticStatuses={optimisticStatuses()}
-                pendingCompletionIds={pendingCompletionIds()}
-                pendingDeleteIds={pendingDeleteIds()}
-                onCancelEdit={cancelEdit}
-                onChangeEditDraft={changeEditDraft}
-                onDelete={(todo) => void deleteTodo(todo)}
-                onLoadMore={() => void loadPage("completed", true)}
-                onSaveEdit={(id) => void saveEdit(id)}
-                onStartEdit={startEdit}
-                onToggle={() => toggleBrowse("completed", projection().completedCount)}
-                onToggleTodo={(todo) => void toggleTodo(todo)}
-              />
+                <BrowseSection
+                  count={projection().standbyCount}
+                  emptyCopy="No tasks in Standby."
+                  hasMore={standbyHasMore()}
+                  items={standbyItems()}
+                  loading={standbyLoading()}
+                  moreLabel="Show 20 more"
+                  open={standbyOpen()}
+                  status="standby"
+                  title="Standby"
+                  editState={editState()}
+                  optimisticStatuses={optimisticStatuses()}
+                  pendingCompletionIds={pendingCompletionIds()}
+                  pendingDeleteIds={pendingDeleteIds()}
+                  onCancelEdit={cancelEdit}
+                  onChangeEditDraft={changeEditDraft}
+                  onDelete={(todo) => void deleteTodo(todo)}
+                  onLoadMore={() => void loadPage("standby", true)}
+                  onSaveEdit={(id) => void saveEdit(id)}
+                  onStartEdit={startEdit}
+                  onToggle={() => toggleBrowse("standby", projection().standbyCount)}
+                  onToggleTodo={(todo) => void toggleTodo(todo)}
+                />
+                <BrowseSection
+                  count={projection().completedCount}
+                  emptyCopy="No completed tasks yet."
+                  hasMore={completedHasMore()}
+                  items={completedItems()}
+                  loading={completedLoading()}
+                  moreLabel="Show 20 older"
+                  open={completedOpen()}
+                  status="completed"
+                  title="Completed"
+                  editState={editState()}
+                  optimisticStatuses={optimisticStatuses()}
+                  pendingCompletionIds={pendingCompletionIds()}
+                  pendingDeleteIds={pendingDeleteIds()}
+                  onCancelEdit={cancelEdit}
+                  onChangeEditDraft={changeEditDraft}
+                  onDelete={(todo) => void deleteTodo(todo)}
+                  onLoadMore={() => void loadPage("completed", true)}
+                  onSaveEdit={(id) => void saveEdit(id)}
+                  onStartEdit={startEdit}
+                  onToggle={() => toggleBrowse("completed", projection().completedCount)}
+                  onToggleTodo={(todo) => void toggleTodo(todo)}
+                />
+              </div>
 
               <div class="composer-dock">
                 <form class="composer" onSubmit={addTodo} novalidate>
@@ -595,13 +616,20 @@ export function App(props: AppProps = {}) {
         projection={state().kind === "ready" ? (state() as ReadyState).projection : null}
         setDialog={(dialog) => { settingsDialog = dialog; }}
         onClose={returnSettingsFocus}
-        onRequestErase={() => eraseDialog?.showModal()}
+        onRequestErase={openEraseDialog}
       />
 
-      <dialog class="erase-dialog" ref={eraseDialog} aria-labelledby="erase-title">
+      <dialog
+        class="erase-dialog"
+        ref={eraseDialog}
+        aria-labelledby="erase-title"
+        aria-describedby="erase-description"
+        onClose={returnEraseFocus}
+        onKeyDown={(event) => trapDialogTab(event, event.currentTarget)}
+      >
         <form method="dialog">
           <h2 id="erase-title">Erase local data?</h2>
-          <p>This permanently removes every task and completion award stored in this browser.</p>
+          <p id="erase-description">This permanently removes every task and completion award stored in this browser.</p>
           <div class="state-actions">
             <button class="button" type="submit" value="cancel" disabled={erasing()}>Cancel</button>
             <button class="button button--danger" type="button" disabled={erasing()} onClick={() => void confirmErase()}>

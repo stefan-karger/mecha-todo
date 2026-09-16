@@ -32,7 +32,8 @@ test("restores, validates, commits, and clears the persistent composer draft", a
   await expect(input).toHaveValue("Resume calibration");
   await input.fill(" \n\t ");
   await input.press("Enter");
-  await expect(page.getByText("Enter a task.")).toBeVisible();
+  await expect(page.locator("#composer-error")).toHaveText("Enter a task.");
+  await expect(page.getByRole("status")).toHaveText("Enter a task.");
   await expect(page.locator(".todo-row")).toHaveCount(0);
 
   await input.fill("Calibrate left arm");
