@@ -59,6 +59,17 @@ function Get-AndroidPathData {
     })
 }
 
+function Get-PathsBelowId {
+    param(
+        [Parameter(Mandatory)] [xml] $Document,
+        [Parameter(Mandatory)] [string] $Id
+    )
+
+    return @($Document.SelectNodes("//*[@id='$Id']//*[local-name()='path']") | ForEach-Object {
+        Normalize-PathData -PathData $_.GetAttribute('d')
+    })
+}
+
 function Assert-PathParity {
     param(
         [Parameter(Mandatory)] [xml] $Svg,
@@ -72,6 +83,23 @@ function Assert-PathParity {
 
     for ($index = 0; $index -lt $svgPaths.Count; $index++) {
         Assert-Equal -Actual $androidPaths[$index] -Expected $svgPaths[$index] -Label "$Label path $($index + 1)"
+    }
+}
+
+function Assert-PreviewPathParity {
+    param(
+        [Parameter(Mandatory)] [xml] $Source,
+        [Parameter(Mandatory)] [xml] $Preview,
+        [Parameter(Mandatory)] [string] $PreviewGroupId,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    $sourcePaths = Get-SvgPathData -Document $Source
+    $previewPaths = Get-PathsBelowId -Document $Preview -Id $PreviewGroupId
+    Assert-Equal -Actual $previewPaths.Count -Expected $sourcePaths.Count -Label "$Label preview path count"
+
+    for ($index = 0; $index -lt $sourcePaths.Count; $index++) {
+        Assert-Equal -Actual $previewPaths[$index] -Expected $sourcePaths[$index] -Label "$Label preview path $($index + 1)"
     }
 }
 
@@ -102,6 +130,7 @@ function Assert-AndroidCanvas {
 $backgroundSvgPath = Join-Path $PSScriptRoot 'appicon-background.svg'
 $foregroundSvgPath = Join-Path $PSScriptRoot 'appicon-foreground.svg'
 $monochromeSvgPath = Join-Path $PSScriptRoot 'appicon-monochrome.svg'
+$previewSvgPath = Join-Path $PSScriptRoot 'appicon-preview.svg'
 $backgroundAndroidPath = Join-Path $PSScriptRoot 'android/drawable/ic_launcher_background.xml'
 $foregroundAndroidPath = Join-Path $PSScriptRoot 'android/drawable/ic_launcher_foreground.xml'
 $monochromeAndroidPath = Join-Path $PSScriptRoot 'android/drawable/ic_launcher_monochrome.xml'
@@ -111,6 +140,7 @@ $adaptiveV33Path = Join-Path $PSScriptRoot 'android/mipmap-anydpi-v33/ic_launche
 $backgroundSvg = Read-XmlFile -Path $backgroundSvgPath
 $foregroundSvg = Read-XmlFile -Path $foregroundSvgPath
 $monochromeSvg = Read-XmlFile -Path $monochromeSvgPath
+$previewSvg = Read-XmlFile -Path $previewSvgPath
 $backgroundAndroid = Read-XmlFile -Path $backgroundAndroidPath
 $foregroundAndroid = Read-XmlFile -Path $foregroundAndroidPath
 $monochromeAndroid = Read-XmlFile -Path $monochromeAndroidPath
@@ -120,6 +150,9 @@ $adaptiveV33 = Read-XmlFile -Path $adaptiveV33Path
 Assert-SvgCanvas -Document $backgroundSvg -Label 'Background SVG'
 Assert-SvgCanvas -Document $foregroundSvg -Label 'Foreground SVG'
 Assert-SvgCanvas -Document $monochromeSvg -Label 'Monochrome SVG'
+Assert-Equal -Actual $previewSvg.DocumentElement.GetAttribute('width') -Expected '784' -Label 'Preview SVG width'
+Assert-Equal -Actual $previewSvg.DocumentElement.GetAttribute('height') -Expected '158' -Label 'Preview SVG height'
+Assert-Equal -Actual $previewSvg.DocumentElement.GetAttribute('viewBox') -Expected '0 0 784 158' -Label 'Preview SVG viewBox'
 Assert-AndroidCanvas -Document $backgroundAndroid -Label 'Background Android vector'
 Assert-AndroidCanvas -Document $foregroundAndroid -Label 'Foreground Android vector'
 Assert-AndroidCanvas -Document $monochromeAndroid -Label 'Monochrome Android vector'
@@ -127,14 +160,31 @@ Assert-AndroidCanvas -Document $monochromeAndroid -Label 'Monochrome Android vec
 Assert-PathParity -Svg $backgroundSvg -Android $backgroundAndroid -Label 'Background'
 Assert-PathParity -Svg $foregroundSvg -Android $foregroundAndroid -Label 'Foreground'
 Assert-PathParity -Svg $monochromeSvg -Android $monochromeAndroid -Label 'Monochrome'
+Assert-PreviewPathParity -Source $backgroundSvg -Preview $previewSvg -PreviewGroupId 'preview-background-layer' -Label 'Background'
+Assert-PreviewPathParity -Source $foregroundSvg -Preview $previewSvg -PreviewGroupId 'preview-foreground-layer' -Label 'Foreground'
+Assert-PreviewPathParity -Source $monochromeSvg -Preview $previewSvg -PreviewGroupId 'preview-monochrome-layer' -Label 'Monochrome'
 
 $expectedSvgTransform = 'translate(256 256) scale(0.6) translate(-256 -256)'
 foreach ($entry in @(
     @{ Document = $foregroundSvg; Label = 'Foreground SVG' },
-    @{ Document = $monochromeSvg; Label = 'Monochrome SVG' }
+    @{ Document = $monochromeSvg; Label = 'Monochrome SVG' },
+    @{ Document = $previewSvg; Label = 'Preview foreground'; Id = 'preview-foreground-layer' },
+    @{ Document = $previewSvg; Label = 'Preview monochrome'; Id = 'preview-monochrome-layer' }
 )) {
-    $group = $entry.Document.SelectSingleNode("//*[local-name()='g' and @transform]")
+    $group = if ($entry.ContainsKey('Id')) {
+        $entry.Document.SelectSingleNode("//*[@id='$($entry.Id)']")
+    } else {
+        $entry.Document.SelectSingleNode("//*[local-name()='g' and @transform]")
+    }
     Assert-Equal -Actual $group.GetAttribute('transform') -Expected $expectedSvgTransform -Label "$($entry.Label) transform"
+}
+
+Assert-Equal -Actual $previewSvg.SelectNodes("//*[local-name()='image']").Count -Expected 0 -Label 'Preview external image count'
+Assert-Equal -Actual $previewSvg.SelectNodes("//*[contains(concat(' ', normalize-space(@class), ' '), ' launcher-preview ')]").Count -Expected 6 -Label 'Launcher preview count'
+foreach ($use in $previewSvg.SelectNodes("//*[local-name()='use']")) {
+    if (-not $use.GetAttribute('href').StartsWith('#', [System.StringComparison]::Ordinal)) {
+        throw "Preview use element has an external reference: $($use.GetAttribute('href'))"
+    }
 }
 
 foreach ($entry in @(
@@ -170,9 +220,15 @@ foreach ($entry in @(
 
 $backgroundSvgText = Get-Content -LiteralPath $backgroundSvgPath -Raw
 $backgroundAndroidText = Get-Content -LiteralPath $backgroundAndroidPath -Raw
+$previewSvgText = Get-Content -LiteralPath $previewSvgPath -Raw
 foreach ($color in '#231133', '#0B0911', '#0C2118', '#B86CFF', '#45FF63') {
     if (-not $backgroundSvgText.Contains($color, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Background SVG is missing palette color $color."
+    }
+}
+foreach ($color in '#231133', '#0B0911', '#0C2118', '#B86CFF', '#45FF63') {
+    if (-not $previewSvgText.Contains($color, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Preview SVG is missing palette color $color."
     }
 }
 foreach ($color in '#FF231133', '#FF0B0911', '#FF0C2118', '#1AB86CFF', '#1645FF63') {
@@ -181,4 +237,4 @@ foreach ($color in '#FF231133', '#FF0B0911', '#FF0C2118', '#1AB86CFF', '#1645FF6
     }
 }
 
-Write-Output 'Adaptive icon assets are consistent: three SVG layers, three Android vector drawables, and API 26/API 33 adaptive-icon definitions.'
+Write-Output 'Adaptive icon assets are consistent: three SVG layers, one self-contained preview, three Android vector drawables, and API 26/API 33 adaptive-icon definitions.'

@@ -9,12 +9,15 @@ This directory contains the vector source layers and Android resource templates 
 | `appicon-background.svg` | Opaque color background layer. |
 | `appicon-foreground.svg` | Transparent color foreground layer. |
 | `appicon-monochrome.svg` | Single-color alpha layer for themed icons. |
+| `appicon-preview.svg` | Self-contained preview of launcher masks and themed treatments. |
 | `android/drawable/ic_launcher_*.xml` | Android-ready vector drawables matching the SVG layers. |
 | `android/mipmap-anydpi-v26/ic_launcher.xml` | Adaptive icon definition for Android 8 through 12L. |
 | `android/mipmap-anydpi-v33/ic_launcher.xml` | Android 13+ definition with the monochrome layer. |
 | `verify-assets.ps1` | Checks dimensions, transforms, path geometry, and resource references. |
 
-The three SVG files are the editable design sources. The Android XML files mirror their geometry and colors. Run the verification script after editing either format.
+The three layer SVGs are the editable design sources. The Android XML files mirror their geometry and colors. `appicon-preview.svg` embeds copies of the layer paths so repository viewers can render it without loading external files. The verification script catches path drift after edits.
+
+![Adaptive icon mask and theme previews](./appicon-preview.svg)
 
 ## Design contract
 
