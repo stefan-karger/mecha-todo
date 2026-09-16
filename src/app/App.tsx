@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { For, Show, action, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { PRODUCT_NAME } from "../config/product";
 import { loadComposerDraft, saveComposerDraft } from "../persistence/composer-draft";
@@ -32,6 +32,7 @@ type BrowseStatus = "standby" | "completed";
 type EditState = Readonly<{ id: string; draft: string; error: string; saving: boolean }>;
 
 const COMPLETION_HOLD_MS = 240;
+const SAVED_REFRESH_FAILED_MESSAGE = "Task saved. Reload the lists.";
 const numberFormatter = new Intl.NumberFormat();
 const levelFormatter = new Intl.NumberFormat(undefined, {
   minimumIntegerDigits: 3,
@@ -153,15 +154,13 @@ export function App(props: AppProps = {}) {
     setCompletedItems(replace);
   };
 
-  const reloadBrowseStatus = async (status: BrowseStatus): Promise<void> => {
+  const reloadBrowseStatus = async (
+    status: BrowseStatus,
+    previousLength: number,
+  ): Promise<boolean> => {
     const isOpen = untrack(status === "standby" ? standbyOpen : completedOpen);
-    if (!isOpen) return;
+    if (!isOpen) return true;
 
-    const previousLength = untrack(
-      status === "standby"
-        ? () => standbyItems().length
-        : () => completedItems().length,
-    );
     const setItems = status === "standby" ? setStandbyItems : setCompletedItems;
     const setCursor = status === "standby" ? setStandbyCursor : setCompletedCursor;
     const setHasMore = status === "standby" ? setStandbyHasMore : setCompletedHasMore;
@@ -178,22 +177,42 @@ export function App(props: AppProps = {}) {
       setItems(items);
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);
+      return true;
     } catch {
-      setFeedback("Tasks could not be loaded. Retry.");
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const applyCommittedProjection = async (fallback: AppProjection): Promise<void> => {
-    setState({ kind: "ready", projection: fallback });
+  const applyCommittedProjection = async (
+    fallback: AppProjection,
+    affectedTodoIds: readonly string[],
+  ): Promise<boolean> => {
+    const standbyLength = untrack(standbyItems).length;
+    const completedLength = untrack(completedItems).length;
+    const affected = new Set(affectedTodoIds);
+    const removeAffected = (items: TodoRecord[]) =>
+      items.filter((item) => !affected.has(item.id));
+
+    await action(function* publishCommittedProjection() {
+      setState({ kind: "ready", projection: fallback });
+      setStandbyItems(removeAffected);
+      setCompletedItems(removeAffected);
+    })();
+
+    let summaryRefreshed = true;
     try {
       const projection = await repository.getSummaryProjection();
       setState({ kind: "ready", projection });
     } catch {
-      // The committed mutation projection remains usable if the refresh fails.
+      summaryRefreshed = false;
     }
-    await Promise.all([reloadBrowseStatus("standby"), reloadBrowseStatus("completed")]);
+    const pageRefreshes = await Promise.all([
+      reloadBrowseStatus("standby", standbyLength),
+      reloadBrowseStatus("completed", completedLength),
+    ]);
+    return summaryRefreshed && pageRefreshes.every(Boolean);
   };
 
   const startEdit = (todo: TodoRecord): void => {
@@ -262,12 +281,15 @@ export function App(props: AppProps = {}) {
       return;
     }
 
-    setFeedback(completionFeedback(result, previousProjection));
+    const successFeedback = completionFeedback(result, previousProjection);
 
     if (completed && result.changed) {
       await new Promise<void>((resolve) => globalThis.setTimeout(resolve, COMPLETION_HOLD_MS));
     }
-    await applyCommittedProjection(result.projection);
+    const reconciled = await applyCommittedProjection(result.projection, [
+      result.todo.id,
+      ...result.promotedTodoIds,
+    ]);
     setOptimisticStatuses((current) => {
       const next = { ...current };
       delete next[todo.id];
@@ -278,27 +300,37 @@ export function App(props: AppProps = {}) {
       next.delete(todo.id);
       return next;
     });
+    setFeedback(reconciled ? successFeedback : SAVED_REFRESH_FAILED_MESSAGE);
   };
 
   const deleteTodo = async (todo: TodoRecord): Promise<void> => {
     if (pendingDeleteIds().has(todo.id)) return;
     setPendingDeleteIds((current) => new Set(current).add(todo.id));
     const result = await repository.deleteTodo(todo.id);
-    setPendingDeleteIds((current) => {
-      const next = new Set(current);
-      next.delete(todo.id);
-      return next;
-    });
 
     if (!result.ok) {
+      setPendingDeleteIds((current) => {
+        const next = new Set(current);
+        next.delete(todo.id);
+        return next;
+      });
       setFeedback(result.message);
       focusRowAction(todo.id, "delete");
       return;
     }
 
     deleteUndo.offer(result.deletedTodo);
-    setFeedback(result.retainedAward ? "TASK DELETED · XP RETAINED" : "TASK DELETED");
-    await applyCommittedProjection(result.projection);
+    const successFeedback = result.retainedAward ? "TASK DELETED · XP RETAINED" : "TASK DELETED";
+    const reconciled = await applyCommittedProjection(result.projection, [
+      result.deletedTodo.id,
+      ...result.promotedTodoIds,
+    ]);
+    setPendingDeleteIds((current) => {
+      const next = new Set(current);
+      next.delete(todo.id);
+      return next;
+    });
+    setFeedback(reconciled ? successFeedback : SAVED_REFRESH_FAILED_MESSAGE);
   };
 
   const undoDelete = async (): Promise<void> => {
@@ -308,8 +340,8 @@ export function App(props: AppProps = {}) {
       setFeedback(result.category === "validation" ? result.validation.message : result.message);
       return;
     }
-    setFeedback("TASK RESTORED");
-    await applyCommittedProjection(result.projection);
+    const reconciled = await applyCommittedProjection(result.projection, [result.todo.id]);
+    setFeedback(reconciled ? "TASK RESTORED" : SAVED_REFRESH_FAILED_MESSAGE);
   };
 
   const handleDraftInput: JSX.EventHandler<HTMLInputElement, InputEvent> = (event) => {

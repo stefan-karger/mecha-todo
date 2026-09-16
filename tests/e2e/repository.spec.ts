@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const databaseModulePath = "/src/persistence/db.ts";
-const repositoryModulePath = "/src/persistence/repository.ts";
+const databaseModulePath = "http://127.0.0.1:4174/db.js";
+const repositoryModulePath = "http://127.0.0.1:4174/repository.js";
 
 test("validates before writing and persists clock-independent creation order", async ({ page }) => {
   await page.goto("/");

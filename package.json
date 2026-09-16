@@ -11,11 +11,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:playwright": "vite build --config vite.playwright.config.ts",
+    "preview": "vite preview",
+    "preview:playwright": "vite preview --config vite.playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:domain": "playwright test tests/domain",
     "test:smoke": "playwright test tests/e2e/shell.spec.ts --project=desktop-chrome",
-    "release:check": "npm run build && node scripts/verify-production.mjs && playwright test"
+    "release:check": "playwright test && node scripts/verify-production.mjs"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "5.3.0",

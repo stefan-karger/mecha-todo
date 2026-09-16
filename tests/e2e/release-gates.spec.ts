@@ -314,8 +314,8 @@ async function mountLongRank(page: Page, todoText: string): Promise<void> {
     });
   }, {
     text: todoText,
-    fixturePath: "/tests/fixtures/mount-app.ts",
-    ranksPath: "/src/domain/ranks.ts",
+    fixturePath: "http://127.0.0.1:4174/mount-app.js",
+    ranksPath: "http://127.0.0.1:4174/ranks.js",
   });
   await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
 }

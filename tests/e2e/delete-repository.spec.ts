@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-const databaseModulePath = "/src/persistence/db.ts";
-const repositoryModulePath = "/src/persistence/repository.ts";
-const undoModulePath = "/src/app/delete-undo.ts";
+const databaseModulePath = "http://127.0.0.1:4174/db.js";
+const repositoryModulePath = "http://127.0.0.1:4174/repository.js";
+const undoModulePath = "http://127.0.0.1:4174/delete-undo.js";
 
 test("deletes every status, restores one Active snapshot, and retains XP", async ({ page }) => {
   await page.goto("/");
@@ -95,6 +95,11 @@ test("deletes every status, restores one Active snapshot, and retains XP", async
     promotedTodoIds: ["todo-9"],
     projection: { lifetimeXp: 0 },
   });
+  expect(
+    result.activeDelete.projection.activeTodos.find(
+      (todo: { id: string }) => todo.id === "todo-9",
+    ),
+  ).toMatchObject({ status: "active", updatedAt: 110 });
   expect(result.restored).toMatchObject({
     ok: true,
     todo: { id: "todo-1", status: "active", creationOrder: 0 },

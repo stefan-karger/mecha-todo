@@ -128,6 +128,43 @@ test("rolls back a rejected optimistic completion and restores focus", async ({ 
   );
 });
 
+test("keeps a reopened todo in one section while Completed refresh is delayed", async ({
+  page,
+}) => {
+  await mountReopenRefreshRepository(page);
+  await page.getByRole("button", { name: /Completed 1/ }).click();
+
+  const rows = page.locator('.todo-row[data-todo-id="reopened"]');
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toBeVisible();
+
+  await page.getByRole("checkbox", { name: "Reopen Reopen target" }).click();
+  const activeToggle = page.getByRole("checkbox", { name: "Complete Reopen target" });
+  await expect(activeToggle).toBeVisible();
+  await expect(activeToggle).toBeDisabled();
+  await expect(rows).toHaveCount(1);
+  await expect(page.locator('#completed-tasks .todo-row[data-todo-id="reopened"]')).toHaveCount(0);
+  await expect(page.getByRole("status")).not.toContainText("TASK REOPENED");
+
+  await page.evaluate(() => {
+    (window as typeof window & { resolvePageRefresh: () => void }).resolvePageRefresh();
+  });
+
+  await expect(activeToggle).toBeEnabled();
+  await expect(rows).toHaveCount(1);
+  await expect(page.getByRole("status")).toContainText("TASK REOPENED · XP RETAINED");
+});
+
+test("reports a committed mutation when a paged-list refresh fails", async ({ page }) => {
+  await mountReopenRefreshRepository(page, true);
+  await page.getByRole("button", { name: /Completed 1/ }).click();
+  await page.getByRole("checkbox", { name: "Reopen Reopen target" }).click();
+
+  await expect(page.getByRole("status")).toContainText("Task saved. Reload the lists.");
+  await expect(page.locator('.todo-row[data-todo-id="reopened"]')).toHaveCount(1);
+  await expect(page.getByRole("checkbox", { name: "Complete Reopen target" })).toBeEnabled();
+});
+
 test("deletes every status, promotes Standby, restores one row, and retains XP", async ({
   page,
 }) => {
@@ -286,7 +323,7 @@ async function mountDelayedRepository(
 ): Promise<void> {
   await page.goto("/");
   await page.evaluate(async (requestedScenario) => {
-    const fixturePath = "/tests/fixtures/mount-app.ts";
+    const fixturePath = "http://127.0.0.1:4174/mount-app.js";
     const { mountApp } = await import(fixturePath);
     const todo = (id: string, text: string) => ({
       id,
@@ -357,4 +394,95 @@ async function mountDelayedRepository(
       close: () => undefined,
     });
   }, scenario);
+}
+
+async function mountReopenRefreshRepository(page: Page, failRefresh = false): Promise<void> {
+  await page.goto("/");
+  await page.evaluate(async (shouldFailRefresh) => {
+    const fixturePath = "http://127.0.0.1:4174/mount-app.js";
+    const { mountApp } = await import(fixturePath);
+    const completed = {
+      id: "reopened",
+      text: "Reopen target",
+      status: "completed" as const,
+      creationOrder: 0,
+      completionOrder: 0,
+      createdAt: 0,
+      updatedAt: 10,
+      completedAt: 10,
+    };
+    const reopened = {
+      ...completed,
+      status: "active" as const,
+      completionOrder: null,
+      updatedAt: 20,
+      completedAt: null,
+    };
+    const progression = {
+      level: 1,
+      currentLevelThreshold: 10,
+      nextLevelThreshold: 30,
+      xpForCurrentLevel: 0,
+      xpForNextLevel: 20,
+    };
+    const pageOf = (items: Array<typeof completed>) => ({
+      items,
+      hasMore: false,
+      nextCursor: null,
+    });
+    const projection = (isReopened: boolean) => ({
+      activeTodos: isReopened ? [reopened] : [],
+      standbyTodos: pageOf([]),
+      completedTodos: pageOf([]),
+      standbyCount: 0,
+      completedCount: isReopened ? 0 : 1,
+      lifetimeXp: 10,
+      progression,
+      rank: "Cadet",
+      activeCapacity: 8,
+      rewardHud: { link: null, combo: null },
+    });
+    let current = projection(false);
+    let completedPageReads = 0;
+    let resolvePageRefresh: (() => void) | undefined;
+    const delayedRefresh = new Promise<void>((resolve) => {
+      resolvePageRefresh = resolve;
+    });
+    (window as typeof window & { resolvePageRefresh: () => void }).resolvePageRefresh = () =>
+      resolvePageRefresh?.();
+
+    mountApp({
+      initialize: async () => ({ ok: true, projection: current }),
+      getProjection: async () => current,
+      getSummaryProjection: async () => current,
+      getTodoPage: async (status: "standby" | "completed") => {
+        if (status !== "completed") return pageOf([]);
+        completedPageReads += 1;
+        if (completedPageReads === 1) return pageOf([completed]);
+        if (!shouldFailRefresh) await delayedRefresh;
+        if (shouldFailRefresh) throw new Error("Refresh failed");
+        return pageOf([]);
+      },
+      addTodo: async () => { throw new Error("Not used"); },
+      editTodo: async () => { throw new Error("Not used"); },
+      setTodoCompleted: async () => {
+        current = projection(true);
+        return {
+          ok: true,
+          action: "reopened",
+          changed: true,
+          todo: reopened,
+          award: null,
+          xpGained: 0,
+          alreadyCredited: false,
+          promotedTodoIds: [],
+          projection: current,
+        };
+      },
+      deleteTodo: async () => { throw new Error("Not used"); },
+      restoreDeletedTodo: async () => { throw new Error("Not used"); },
+      eraseLocalData: async () => { throw new Error("Not used"); },
+      close: () => undefined,
+    });
+  }, failRefresh);
 }

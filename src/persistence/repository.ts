@@ -199,6 +199,12 @@ type ProjectionTransaction = IDBPTransaction<
   "readonly"
 >;
 
+type MutationTransaction = IDBPTransaction<
+  MechaTodoDatabase,
+  ("todos" | "completionAwards" | "meta")[],
+  "readwrite"
+>;
+
 export class IndexedDbAppRepository implements AppRepository {
   readonly #databaseName: string;
   readonly #clock: () => number;
@@ -522,30 +528,9 @@ export class IndexedDbAppRepository implements AppRepository {
       }
 
       await todos.delete(id);
-      const promotedTodoIds: string[] = [];
-
-      if (current.status === "active") {
-        const timestamp = this.#clock();
-        const capacity = activeCapacity(progressionForTotalXp(stats.lifetimeXp).level);
-        const activeCount = await todos
-          .index("by-status-creation-order")
-          .count(statusRange("active"));
-        const availableSlots = Math.max(0, capacity - activeCount);
-        let standbyCursor = await todos
-          .index("by-status-creation-order")
-          .openCursor(statusRange("standby"), "next");
-
-        while (standbyCursor && promotedTodoIds.length < availableSlots) {
-          const promoted: TodoRecord = {
-            ...standbyCursor.value,
-            status: "active",
-            updatedAt: timestamp,
-          };
-          await standbyCursor.update(promoted);
-          promotedTodoIds.push(promoted.id);
-          standbyCursor = await standbyCursor.continue();
-        }
-      }
+      const promotedTodoIds = current.status === "active"
+        ? await promoteOldestStandbyTodos(transaction, stats.lifetimeXp, this.#clock())
+        : [];
 
       await transaction.done;
 
@@ -758,26 +743,11 @@ export class IndexedDbAppRepository implements AppRepository {
     };
     await todos.put(completedTodo);
 
-    const capacity = activeCapacity(progressionForTotalXp(lifetimeXp).level);
-    const activeCount = await todos
-      .index("by-status-creation-order")
-      .count(statusRange("active"));
-    const availableSlots = Math.max(0, capacity - activeCount);
-    const promotedTodoIds: string[] = [];
-    let standbyCursor = await todos
-      .index("by-status-creation-order")
-      .openCursor(statusRange("standby"), "next");
-
-    while (standbyCursor && promotedTodoIds.length < availableSlots) {
-      const promoted: TodoRecord = {
-        ...standbyCursor.value,
-        status: "active",
-        updatedAt: timestamp,
-      };
-      await standbyCursor.update(promoted);
-      promotedTodoIds.push(promoted.id);
-      standbyCursor = await standbyCursor.continue();
-    }
+    const promotedTodoIds = await promoteOldestStandbyTodos(
+      transaction,
+      lifetimeXp,
+      timestamp,
+    );
 
     await Promise.all([
       meta.put({ ...core, nextCompletionOrder: core.nextCompletionOrder + 1 }),
@@ -823,6 +793,33 @@ export class IndexedDbAppRepository implements AppRepository {
 
 function statusRange(status: TodoStatus): IDBKeyRange {
   return IDBKeyRange.bound([status], [status, []]);
+}
+
+async function promoteOldestStandbyTodos(
+  transaction: MutationTransaction,
+  lifetimeXp: number,
+  timestamp: number,
+): Promise<string[]> {
+  const todos = transaction.objectStore("todos");
+  const index = todos.index("by-status-creation-order");
+  const capacity = activeCapacity(progressionForTotalXp(lifetimeXp).level);
+  const activeCount = await index.count(statusRange("active"));
+  const availableSlots = Math.max(0, capacity - activeCount);
+  const promotedTodoIds: string[] = [];
+  let standbyCursor = await index.openCursor(statusRange("standby"), "next");
+
+  while (standbyCursor && promotedTodoIds.length < availableSlots) {
+    const promoted: TodoRecord = {
+      ...standbyCursor.value,
+      status: "active",
+      updatedAt: timestamp,
+    };
+    await standbyCursor.update(promoted);
+    promotedTodoIds.push(promoted.id);
+    standbyCursor = await standbyCursor.continue();
+  }
+
+  return promotedTodoIds;
 }
 
 async function readRewardHudState(

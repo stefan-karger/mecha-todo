@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const databaseModulePath = "/src/persistence/db.ts";
-const validationModulePath = "/src/persistence/validation.ts";
+const databaseModulePath = "http://127.0.0.1:4174/db.js";
+const validationModulePath = "http://127.0.0.1:4174/validation.js";
 
 test("creates exactly the V1 stores, indexes, and initial metadata", async ({ page }) => {
   await page.goto("/");

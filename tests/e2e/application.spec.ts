@@ -199,7 +199,7 @@ async function renderWithStartup(
 ): Promise<void> {
   await page.goto("/");
   await page.evaluate(async (requestedState) => {
-    const fixturePath = "/tests/fixtures/mount-app.ts";
+    const fixturePath = "http://127.0.0.1:4174/mount-app.js";
     const { mountApp } = await import(fixturePath);
 
     const initialize = () => {
@@ -257,7 +257,7 @@ async function renderWithStartup(
 async function seedHistory(page: Page, standbyCount: number, completedCount: number): Promise<void> {
   await page.evaluate(
     async ({ completedCount: completedTotal, standbyCount: standbyTotal }) => {
-      const databasePath = "/src/persistence/db.ts";
+      const databasePath = "http://127.0.0.1:4174/db.js";
       const { openVersionedDatabase } = await import(databasePath);
       await new Promise<void>((resolve, reject) => {
         const deletion = indexedDB.deleteDatabase("mecha-todo");

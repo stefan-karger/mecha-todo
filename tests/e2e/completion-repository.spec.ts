@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const databaseModulePath = "/src/persistence/db.ts";
-const repositoryModulePath = "/src/persistence/repository.ts";
+const databaseModulePath = "http://127.0.0.1:4174/db.js";
+const repositoryModulePath = "http://127.0.0.1:4174/repository.js";
 
 test("awards every milestone once and re-completes with the latest order", async ({ page }) => {
   await page.goto("/");
@@ -304,6 +304,52 @@ test("fills every available slot from the oldest Standby todos", async ({ page }
     "standby-3",
     "standby-4",
   ]);
+  expect(
+    result.projection.activeTodos
+      .filter((todo: { id: string }) => todo.id.startsWith("standby-"))
+      .map((todo: { updatedAt: number }) => todo.updatedAt),
+  ).toEqual([100, 100, 100, 100, 100]);
+});
+
+test("does not promote Standby when Active Bay is already at capacity", async ({ page }) => {
+  await page.goto("/");
+
+  const result = await page.evaluate(async (repositoryPath) => {
+    const { IndexedDbAppRepository } = await import(repositoryPath);
+    const name = `mecha-todo-no-promotion-${crypto.randomUUID()}`;
+    let id = 0;
+    const repository = new IndexedDbAppRepository({
+      databaseName: name,
+      clock: () => 100,
+      calendar: () => ({ year: 2026, month: 9, day: 14 }),
+      idFactory: () => `todo-${++id}`,
+    });
+    await repository.initialize();
+    for (let index = 0; index < 10; index += 1) {
+      const added = await repository.addTodo(`Task ${index + 1}`);
+      if (!added.ok) return added;
+    }
+
+    const completed = await repository.setTodoCompleted("todo-9", true);
+    repository.close();
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+    return completed;
+  }, repositoryModulePath);
+
+  expect(result).toMatchObject({
+    ok: true,
+    todo: { id: "todo-9", status: "completed" },
+    promotedTodoIds: [],
+    projection: {
+      activeTodos: expect.any(Array),
+      standbyTodos: { items: [{ id: "todo-10", status: "standby" }] },
+    },
+  });
+  expect(result.projection.activeTodos).toHaveLength(8);
 });
 
 test("same-todo and different-todo races preserve award uniqueness", async ({ page }) => {

@@ -25,6 +25,7 @@ dev-dist/
 *.tsbuildinfo
 
 # Playwright output and local state
+.playwright/
 test-results/
 playwright-report/
 blob-report/

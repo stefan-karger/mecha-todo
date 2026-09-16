@@ -43,9 +43,18 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: "npm run dev -- --host 127.0.0.1 --port 4173",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: true,
-  },
+  webServer: [
+    {
+      command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      command: "npm run build:playwright && npm run preview:playwright -- --host 127.0.0.1 --port 4174 --strictPort",
+      url: "http://127.0.0.1:4174/repository.js",
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 });

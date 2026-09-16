@@ -6,7 +6,7 @@ Run the local release gate with:
 npm run release:check
 ```
 
-The command type-checks and builds the production bundle, audits forbidden production features, and runs the required mobile, tablet, and desktop Chrome projects. Production deployment and origin-specific checks are deferred.
+Playwright type-checks and builds the application, starts Vite preview on a dedicated strict port, and runs the required mobile, tablet, and desktop Chrome projects against that production bundle. It never reuses a running server. After the browser suite passes, the command audits the same `dist` output for forbidden production features. Production deployment and origin-specific checks are deferred.
 
 ## Todo behavior
 

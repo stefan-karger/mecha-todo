@@ -104,8 +104,8 @@ async function mountLongContent(page: Page): Promise<void> {
       close: () => undefined,
     });
   }, {
-    fixturePath: "/tests/fixtures/mount-app.ts",
-    ranksPath: "/src/domain/ranks.ts",
+    fixturePath: "http://127.0.0.1:4174/mount-app.js",
+    ranksPath: "http://127.0.0.1:4174/ranks.js",
   });
   await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
 }
@@ -132,5 +132,5 @@ async function mountLocalDataError(page: Page): Promise<void> {
       eraseLocalData: async () => { throw new Error("Not used"); },
       close: () => undefined,
     });
-  }, "/tests/fixtures/mount-app.ts");
+  }, "http://127.0.0.1:4174/mount-app.js");
 }

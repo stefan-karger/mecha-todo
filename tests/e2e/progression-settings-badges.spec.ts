@@ -174,9 +174,9 @@ async function mountLinkedDayRepository(page: Page): Promise<void> {
       idFactory: () => "linked-day-task",
     }));
   }, {
-    databasePath: "/src/persistence/db.ts",
-    repositoryPath: "/src/persistence/repository.ts",
-    fixturePath: "/tests/fixtures/mount-app.ts",
+    databasePath: "http://127.0.0.1:4174/db.js",
+    repositoryPath: "http://127.0.0.1:4174/repository.js",
+    fixturePath: "http://127.0.0.1:4174/mount-app.js",
   });
   await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
 }
@@ -252,9 +252,9 @@ async function mountRankTransitionRepository(page: Page): Promise<void> {
       calendar: () => ({ year: 2026, month: 9, day: 15 }),
     }));
   }, {
-    databasePath: "/src/persistence/db.ts",
-    repositoryPath: "/src/persistence/repository.ts",
-    fixturePath: "/tests/fixtures/mount-app.ts",
+    databasePath: "http://127.0.0.1:4174/db.js",
+    repositoryPath: "http://127.0.0.1:4174/repository.js",
+    fixturePath: "http://127.0.0.1:4174/mount-app.js",
   });
   await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
 }

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-const databaseModulePath = "/src/persistence/db.ts";
-const repositoryModulePath = "/src/persistence/repository.ts";
-const startupModulePath = "/src/persistence/startup.ts";
+const databaseModulePath = "http://127.0.0.1:4174/db.js";
+const repositoryModulePath = "http://127.0.0.1:4174/repository.js";
+const startupModulePath = "http://127.0.0.1:4174/startup.js";
 
 test("validates and rebuilds safe metadata before returning the authoritative projection", async ({
   page,
