@@ -37,7 +37,7 @@ The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and eng
 
 - Solid 2 and TypeScript
 - Vite
-- Tailwind CSS
+- Handwritten CSS
 - IndexedDB through `idb`
 - Valibot
 - Playwright

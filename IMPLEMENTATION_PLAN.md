@@ -76,7 +76,7 @@ V1 includes:
 - English interface copy with device-locale date and number formatting;
 - WCAG 2.2 AA-aligned behavior, visible focus, reduced motion, and forced-colors support;
 - Playwright tests for pure domain rules and browser behavior;
-- a static deployment on one stable HTTPS origin.
+- a deployment-ready static build for one stable HTTPS origin. Public deployment is deferred.
 
 V1 does not include:
 
@@ -568,17 +568,37 @@ Counters and derived statistics can be rebuilt from authoritative records. Award
 Components do not access IndexedDB directly. Expose typed operations through one repository.
 
 ~~~ts
+interface ApplicationViewState {
+  activeTodos: TodoRecord[];
+  standbyCount: number;
+  completedCount: number;
+  progression: Progression;
+  rank: string;
+  activeCapacity: number;
+  rewardHud: RewardHudState;
+}
+
+interface TodoPage {
+  items: TodoRecord[];
+  hasMore: boolean;
+  nextCursor: TodoPageCursor | null;
+}
+
 interface AppRepository {
   initialize(): Promise<StartupResult>;
-  getProjection(query?: ProjectionQuery): Promise<AppProjection>;
+  getApplicationViewState(): Promise<ApplicationViewState>;
+  getTodoPage(status: "standby" | "completed", cursor?: TodoPageCursor): Promise<TodoPage>;
   addTodo(text: string): Promise<MutationResult>;
   editTodo(id: string, text: string): Promise<MutationResult>;
-  toggleTodo(id: string): Promise<MutationResult>;
-  deleteTodo(id: string): Promise<DeleteResult>;
+  setTodoCompleted(id: string, completed: boolean): Promise<CompletionMutationResult>;
+  deleteTodo(id: string): Promise<DeleteMutationResult>;
   restoreDeletedTodo(snapshot: TodoRecord): Promise<MutationResult>;
-  eraseLocalData(): Promise<void>;
+  eraseLocalData(confirmation: EraseConfirmation): Promise<EraseLocalDataResult>;
+  close(): void;
 }
 ~~~
+
+Startup and every successful mutation return the same application view state shape. Lifetime XP exists only at <code>progression.lifetimeXp</code> within that state. Standby and Completed records are not part of it. The interface loads those records only through <code>getTodoPage</code>, which opens a read-only transaction for the requested page. Successful mutations do not read either page before returning.
 
 Exact TypeScript names may change. The boundary and behavior may not.
 
@@ -636,6 +656,8 @@ Re-complete allocates a new completion order and timestamp but finds the existin
 
 Delete removes only the todo. It leaves its completion award untouched. If an Active todo was removed, fill available capacity before commit.
 
+Completion and Active deletion call the same transaction helper to count open slots and promote the oldest Standby todos. Every promoted todo receives the mutation timestamp, and the committed result lists its ID.
+
 Return the former record to the initiating page for the five-second in-memory Undo. Restore only when the ID remains absent. A restore writes the former status and ordering fields without changing the award or reversing later promotions.
 
 ### 10.6 Erase local data
@@ -655,7 +677,7 @@ run the version upgrade
 validate core metadata
 validate todos and completion awards
 rebuild counters and derived statistics when needed
-load the authoritative projection
+load the application view state
 ~~~
 
 Show <code>Opening local data...</code> while this runs. Do not flash an empty level-0 list before startup finishes.
@@ -697,7 +719,9 @@ Erasure opens a confirmation dialog. It is permanent and has no Undo. Do not off
 
 ## 12. Client state and save errors
 
-Solid state is a projection of IndexedDB plus transient interaction state. The repository commits every mutation immediately. There is no periodic save buffer.
+Solid keeps one application view state for Active Bay and progression, separate loaded pages for open Standby and Completed sections, and transient interaction state. It does not copy Lifetime XP or paged records into a second summary model. The repository commits every mutation immediately. There is no periodic save buffer.
+
+After a commit, publish the application view state and remove affected todos from stale Standby or Completed pages in one Solid batch. Keep the mutation pending until each open page has refreshed to its previous loaded depth. If that refresh fails after commit, retain the coherent committed rows and instruct the user to reload the lists.
 
 Use optimistic state only where it improves response:
 
@@ -885,7 +909,7 @@ Task text remains in IndexedDB or the unfinished local composer draft. Do not pu
 
 ### 16.2 Static deployment
 
-Deploy the production build as static assets on Vercel. Do not add Functions, API routes, environment secrets, or a server database.
+Production deployment is deferred. When deployment is authorized, deploy the production build as static assets on Vercel. Do not add Functions, API routes, environment secrets, or a server database.
 
 Use one stable HTTPS production origin. State before release that preview URLs, another hostname, another profile, and another device have separate data that V1 cannot transfer.
 
@@ -917,8 +941,6 @@ Use one verified dependency set and commit <code>package-lock.json</code>. The b
 | <code>@solidjs/vite-plugin</code> | <code>3.0.0-next.43</code> |
 | <code>vite</code> | <code>8.3.0</code> |
 | <code>typescript</code> | <code>7.0.2</code> |
-| <code>tailwindcss</code> | <code>4.3.3</code> |
-| <code>@tailwindcss/vite</code> | <code>4.3.3</code> |
 | <code>idb</code> | <code>8.0.3</code> |
 | <code>valibot</code> | <code>1.5.0</code> |
 | <code>@fontsource-variable/jetbrains-mono</code> | <code>5.3.0</code> |
@@ -926,6 +948,8 @@ Use one verified dependency set and commit <code>package-lock.json</code>. The b
 | <code>@axe-core/playwright</code> | <code>4.13.0</code> |
 
 Solid 2 remains a prerelease line at the time of this plan. Before application work, run an empty production build, typecheck, and one Chrome smoke test with the exact group. If it fails, update the Solid compiler, runtime, web renderer, and Vite plugin as one compatible set and record the change in this file.
+
+Use the handwritten <code>src/styles/app.css</code> stylesheet. Do not add Tailwind, another CSS framework, or a framework reset.
 
 Do not add a component kit, router, state library, date library, gesture library, icon pack, animation library, object-relational mapper, server framework, unit-test runner, or PWA package for V1.
 
@@ -1032,6 +1056,7 @@ Test:
 - retained Lifetime XP after rewarded deletion;
 - missing-record behavior when a second page removes a todo;
 - same-todo and different-todo completion races without duplicate awards or ordinals;
+- coherent rows before, during, and after a delayed paged-list refresh following a committed status change;
 - immediate checked state, committed reward feedback, and failure rollback;
 - LINK, COMBO, level, rank, capacity, and promotion presentation;
 - strict startup validation, retry, and confirmed local-data erasure;
@@ -1059,13 +1084,17 @@ Keep reviewed screenshots for each of the three projects. Cover:
 
 The review checks hierarchy, wrapping, contrast, focus, sticky regions, and horizontal overflow. It does not create a pixel-perfect snapshot gate for every component.
 
+### 19.5 Production-preview server
+
+Every Playwright command type-checks and builds the application before it starts Vite preview. The application and repository-test bundles use dedicated strict ports, and Playwright never reuses a running server. The configured base URL points to the production preview. The release command runs the browser suite first, then audits the same <code>dist</code> output for forbidden features and Tailwind output.
+
 ## 20. Implementation sequence
 
 Each phase ends with its relevant tests passing.
 
 ### Phase 1. Toolchain and shell
 
-- Configure Vite, Solid 2, TypeScript, Tailwind, and Playwright.
+- Configure Vite, Solid 2, TypeScript, handwritten CSS, and Playwright.
 - Pin the verified dependency set and commit the lockfile.
 - Add product configuration and the bundled font.
 - Render one accessible static shell.
@@ -1086,7 +1115,7 @@ Each phase ends with its relevant tests passing.
 
 ### Phase 4. Todo interface
 
-- Render the authoritative startup projection.
+- Render the application view state returned by startup.
 - Build the composer, Active Bay, paged Standby and Completed sections, inline editing, completion, reopen, delete, and Undo.
 - Add optimistic checked state and failure rollback.
 
@@ -1102,12 +1131,13 @@ Each phase ends with its relevant tests passing.
 - Complete long-content wrapping, sticky regions, keyboard behavior, focus management, reduced motion, and forced colors.
 - Review screenshots at the three release viewports.
 
-### Phase 7. Release and deployment
+### Phase 7. Release verification and deferred deployment
 
 - Run all three Chrome projects.
 - Run the production privacy and network checks.
-- Deploy static assets to the stable production origin.
-- Verify response headers, ordinary asset caching, browser-local persistence, and the production smoke flow.
+- Audit the tested production output for forbidden features and Tailwind output.
+- Keep production deployment deferred until a stable HTTPS origin is approved.
+- After deployment is authorized, verify response headers, ordinary asset caching, browser-local persistence, and the production smoke flow.
 
 ## 21. V1 acceptance criteria
 
@@ -1160,8 +1190,9 @@ Each phase ends with its relevant tests passing.
 - [ ] Production makes no third-party runtime request and sends no task content off device.
 - [ ] Production has no manifest, service worker, install code, offline promise, file-data workflow, or synchronization protocol.
 - [ ] The three required Chrome projects pass.
-- [ ] Static deployment uses the selected stable HTTPS origin and the documented security headers.
-- [ ] Production smoke testing proves the main todo flow and browser-local persistence.
+- [ ] The local release gate tests a fresh production preview and audits the same output.
+- Deferred: Static deployment must use the selected stable HTTPS origin and documented security headers.
+- Deferred: Production smoke testing must prove the main todo flow and browser-local persistence after deployment.
 
 ## 22. Explicit V1 decisions
 

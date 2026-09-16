@@ -21,6 +21,8 @@ const forbiddenCode = [
   ["file export picker", /showSaveFilePicker/],
   ["persistent-storage request", /navigator\s*\.\s*storage\s*\.\s*persist\s*\(/],
   ["test-only application mount", /mountApp\s*\(/],
+  ["Tailwind banner", /tailwindcss/i],
+  ["Tailwind custom property", /--tw-/i],
 ];
 
 for (const file of textFiles) {
@@ -36,7 +38,9 @@ if (!/assets\/[A-Za-z0-9_-]+-[A-Za-z0-9_-]+\.js/.test(html)) {
   fail("The production HTML does not reference a hashed JavaScript asset.");
 }
 
-process.stdout.write(`Production audit passed for ${files.length} files.\n`);
+process.stdout.write(
+  `Production audit passed for ${files.length} files; no forbidden features or Tailwind output found.\n`,
+);
 
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

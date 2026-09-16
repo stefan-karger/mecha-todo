@@ -17,7 +17,8 @@ Playwright type-checks and builds the application, starts Vite preview on a dedi
 | Text normalization and the 280-code-point limit match the contract. | `tests/domain/todo-text.spec.ts`, `tests/e2e/release-gates.spec.ts` |
 | Active, Standby, and Completed ordering remains stable across clock changes. | `tests/e2e/repository.spec.ts` |
 | Capacity affects new placement but never blocks reopen. | `tests/domain/capacity.spec.ts`, `tests/e2e/completion-repository.spec.ts` |
-| Opening capacity promotes the oldest Standby todos. | `tests/e2e/completion-repository.spec.ts` |
+| Completion and Active deletion share the transaction helper that promotes the oldest Standby todos. | `tests/e2e/completion-repository.spec.ts`, `tests/e2e/delete-repository.spec.ts` |
+| A committed status change keeps one row visible while an open paged list refresh is delayed or fails. | `tests/e2e/todo-row-actions.spec.ts` (`keeps a reopened todo in one section while Completed refresh is delayed`, `reports a committed mutation when a paged-list refresh fails`) |
 | Editing any status has no XP or ordering side effect. | `tests/e2e/todo-row-actions.spec.ts` |
 | Every task action has a visible touch, mouse, and keyboard path. | `tests/e2e/todo-row-actions.spec.ts`, `tests/e2e/release-gates.spec.ts` |
 | Delete commits immediately, offers a five-second in-memory Undo, and retains XP. | `tests/domain/delete-undo.spec.ts`, `tests/e2e/delete-repository.spec.ts`, `tests/e2e/todo-row-actions.spec.ts` |
@@ -28,6 +29,7 @@ Playwright type-checks and builds the application, starts Vite preview on a dedi
 |---|---|
 | First completion creates exactly one immutable award. | `tests/e2e/completion-repository.spec.ts` |
 | Reopen and re-complete create no additional XP. | `tests/e2e/completion-repository.spec.ts`, `tests/e2e/progression-settings-badges.spec.ts` |
+| The reopen, over-capacity, and re-complete progression scenario remains stable across ten consecutive runs. | `tests/e2e/todo-row-actions.spec.ts` (`completes both open statuses, reopens over capacity, and re-completes without XP`) |
 | Deletion never changes Lifetime XP. | `tests/e2e/delete-repository.spec.ts` |
 | LINK and milestone-only COMBO match rules V1. | `tests/domain/rewards.spec.ts`, `tests/e2e/progression-settings-badges.spec.ts` |
 | Deleted awards continue to count for ordinals, LINK, and progression. | `tests/e2e/completion-repository.spec.ts`, `tests/e2e/delete-repository.spec.ts` |
@@ -66,6 +68,8 @@ Playwright type-checks and builds the application, starts Vite preview on a dedi
 |---|---|
 | Production makes no third-party request and sends no task content off device. | `tests/e2e/release-gates.spec.ts`, `scripts/verify-production.mjs` |
 | Production omits manifest, service worker, install, file-data, storage-protection, and synchronization code. | `scripts/verify-production.mjs` |
+| Every Playwright command type-checks and builds before Vite preview starts on dedicated strict ports, with server reuse disabled. | `playwright.config.ts`, `vite.playwright.config.ts`, `package.json` |
+| The release command audits the same production output tested by the browser suite and rejects Tailwind output. | `package.json`, `scripts/verify-production.mjs` |
 | The three required Chrome projects pass. | `npm run release:check` |
 
 ## Visual review
