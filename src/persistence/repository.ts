@@ -48,6 +48,8 @@ export type AppProjection = Readonly<{
   activeTodos: TodoRecord[];
   standbyTodos: TodoPage;
   completedTodos: TodoPage;
+  standbyCount: number;
+  completedCount: number;
   lifetimeXp: number;
   progression: Progression;
   rank: string;
@@ -161,8 +163,10 @@ export type DeleteMutationResult =
   | WriteFailure;
 
 export interface AppRepository {
-  initialize(): Promise<StartupResult>;
+  initialize(options?: Readonly<{ summaryOnly?: boolean }>): Promise<StartupResult>;
   getProjection(query?: ProjectionQuery): Promise<AppProjection>;
+  getSummaryProjection(): Promise<AppProjection>;
+  getTodoPage(status: "standby" | "completed", cursor?: TodoPageCursor): Promise<TodoPage>;
   addTodo(text: string): Promise<MutationResult>;
   editTodo(id: string, text: string): Promise<MutationResult>;
   setTodoCompleted(id: string, completed: boolean): Promise<CompletionMutationResult>;
@@ -210,10 +214,17 @@ export class IndexedDbAppRepository implements AppRepository {
     this.#clearDraft = clearDraft;
   }
 
-  async initialize(): Promise<StartupResult> {
+  async initialize(
+    { summaryOnly = false }: Readonly<{ summaryOnly?: boolean }> = {},
+  ): Promise<StartupResult> {
     if (this.#database) {
       try {
-        return { ok: true, projection: await this.getProjection() };
+        return {
+          ok: true,
+          projection: summaryOnly
+            ? await this.getSummaryProjection()
+            : await this.getProjection(),
+        };
       } catch {
         this.close();
         return localDataProblem("projection-failed");
@@ -244,11 +255,51 @@ export class IndexedDbAppRepository implements AppRepository {
 
     this.#database = opened.database;
     try {
-      return { ok: true, projection: await this.getProjection() };
+      return {
+        ok: true,
+        projection: summaryOnly
+          ? await this.getSummaryProjection()
+          : await this.getProjection(),
+      };
     } catch {
       this.close();
       return localDataProblem("projection-failed");
     }
+  }
+
+  async getSummaryProjection(): Promise<AppProjection> {
+    const database = this.#requireDatabase();
+    const transaction = database.transaction(["todos", "meta"], "readonly");
+    const todoIndex = transaction.objectStore("todos").index("by-status-creation-order");
+    const activeTodosPromise = todoIndex.getAll(statusRange("active"));
+    const standbyCountPromise = todoIndex.count(statusRange("standby"));
+    const completedCountPromise = todoIndex.count(statusRange("completed"));
+    const statsPromise = transaction.objectStore("meta").get("derived-stats");
+    const [activeTodos, standbyCount, completedCount, stats] = await Promise.all([
+      activeTodosPromise,
+      standbyCountPromise,
+      completedCountPromise,
+      statsPromise,
+    ]);
+    await transaction.done;
+
+    if (!stats || stats.key !== "derived-stats") {
+      throw new Error(LIST_CHANGED_MESSAGE);
+    }
+
+    const progression = progressionForTotalXp(stats.lifetimeXp);
+
+    return Object.freeze({
+      activeTodos,
+      standbyTodos: emptyTodoPage(),
+      completedTodos: emptyTodoPage(),
+      standbyCount,
+      completedCount,
+      lifetimeXp: stats.lifetimeXp,
+      progression,
+      rank: rankForLevel(progression.level),
+      activeCapacity: activeCapacity(progression.level),
+    });
   }
 
   async getProjection(query: ProjectionQuery = {}): Promise<AppProjection> {
@@ -261,11 +312,22 @@ export class IndexedDbAppRepository implements AppRepository {
     const activeTodosPromise = todoIndex.getAll(statusRange("active"));
     const standbyTodosPromise = readStandbyPage(transaction, query.standbyAfter);
     const completedTodosPromise = readCompletedPage(transaction, query.completedBefore);
+    const standbyCountPromise = todoIndex.count(statusRange("standby"));
+    const completedCountPromise = todoIndex.count(statusRange("completed"));
     const statsPromise = transaction.objectStore("meta").get("derived-stats");
-    const [activeTodos, standbyTodos, completedTodos, stats] = await Promise.all([
+    const [
+      activeTodos,
+      standbyTodos,
+      completedTodos,
+      standbyCount,
+      completedCount,
+      stats,
+    ] = await Promise.all([
       activeTodosPromise,
       standbyTodosPromise,
       completedTodosPromise,
+      standbyCountPromise,
+      completedCountPromise,
       statsPromise,
     ]);
     await transaction.done;
@@ -280,11 +342,29 @@ export class IndexedDbAppRepository implements AppRepository {
       activeTodos,
       standbyTodos,
       completedTodos,
+      standbyCount,
+      completedCount,
       lifetimeXp: stats.lifetimeXp,
       progression,
       rank: rankForLevel(progression.level),
       activeCapacity: activeCapacity(progression.level),
     });
+  }
+
+  async getTodoPage(
+    status: "standby" | "completed",
+    cursor?: TodoPageCursor,
+  ): Promise<TodoPage> {
+    const transaction = this.#requireDatabase().transaction(
+      ["todos", "completionAwards", "meta"],
+      "readonly",
+    );
+    const page =
+      status === "standby"
+        ? await readStandbyPage(transaction, cursor)
+        : await readCompletedPage(transaction, cursor);
+    await transaction.done;
+    return page;
   }
 
   async addTodo(text: string): Promise<MutationResult> {
@@ -330,6 +410,8 @@ export class IndexedDbAppRepository implements AppRepository {
         meta.put({ ...core, nextCreationOrder: core.nextCreationOrder + 1 }),
       ]);
       await transaction.done;
+
+      this.#clearDraft();
 
       return { ok: true, todo, projection: await this.getProjection() };
     } catch {
@@ -776,6 +858,10 @@ function pageFromItems(
     nextCursor:
       hasMore && last && order !== null && order !== undefined ? { order, id: last.id } : null,
   });
+}
+
+function emptyTodoPage(): TodoPage {
+  return Object.freeze({ items: [], hasMore: false, nextCursor: null });
 }
 
 function changedInAnotherTab(): ChangedInAnotherTabFailure {
