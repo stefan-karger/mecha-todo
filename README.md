@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/favicon.svg" alt="MECHA//TODO helmet logo" width="160" height="160">
+  <img src="docs/assets/appicon_logo.png" alt="MECHA//TODO helmet logo" width="160" height="160">
 </p>
 
 <h1 align="center">MECHA//TODO</h1>
