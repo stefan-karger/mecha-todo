@@ -1,5 +1,8 @@
 # MECHA//TODO — Rank & Designation Progression IDEA
 
+> [!WARNING]
+> **Legacy design input.** This file is preserved as the original proposal and is not authoritative for implementation. Do not use it to make implementation decisions. Use [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) instead. Where the documents conflict, the implementation plan takes precedence.
+
 ## Purpose
 
 This document captures the current design direction for the **rank, designation, level, and badge progression system** in MECHA//TODO.
