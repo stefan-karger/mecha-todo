@@ -2,7 +2,10 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 test("captures every required release state for visual review", async ({ page }, testInfo) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
   await capture(page, testInfo, "01-empty");
 
   const composer = page.getByRole("textbox", { name: "New task" });
@@ -105,7 +108,10 @@ async function mountLongContent(page: Page): Promise<void> {
     fixturePath: "http://127.0.0.1:4174/mount-app.js",
     ranksPath: "http://127.0.0.1:4174/ranks.js",
   });
-  await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 }
 
 async function mountLocalDataError(page: Page): Promise<void> {

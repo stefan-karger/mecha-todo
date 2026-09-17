@@ -8,7 +8,7 @@ test("renders opening, blocked-upgrade, and local-data failure states without ta
 }) => {
   await renderWithStartup(page, "opening");
   await expect(page.getByText("Opening local data...")).toBeVisible();
-  await expect(page.getByText("No active tasks. Add one when you are ready.")).toHaveCount(0);
+  await expect(page.getByText("Nothing active right now. Add a task when you're ready.")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add task" })).toHaveCount(0);
 
   await renderWithStartup(page, "blocked");
@@ -96,6 +96,41 @@ test("may dismiss the composer after a coarse-pointer add", async ({ page }) => 
   await input.press("Enter");
   await expect(page.locator(".active-bay .todo-row")).toContainText("Dismiss keyboard");
   await expect(input).not.toBeFocused();
+});
+
+test("keeps Active open by default and updates it while collapsed", async ({ page }) => {
+  await page.goto("/");
+
+  const active = page.locator('button[aria-controls="active-tasks"]');
+  await expect(active).toHaveAccessibleName(/Active/);
+  await expect(active).toHaveAttribute("aria-expanded", "true");
+  await expect(active.locator(".disclosure-marker")).toHaveText("−");
+  await expect(page.locator("#active-tasks")).toContainText(
+    "Nothing active right now. Add a task when you're ready.",
+  );
+
+  await active.click();
+  await expect(active).toHaveAttribute("aria-expanded", "false");
+  await expect(active.locator(".disclosure-marker")).toHaveText("+");
+  await expect(page.locator("#active-tasks")).toHaveCount(0);
+
+  const input = page.getByRole("textbox", { name: "New task" });
+  await input.fill("Added while Active is closed");
+  await input.press("Enter");
+  await expect(active.locator(".section-count")).toHaveText("1 / 8");
+  await expect(page.getByText("Added while Active is closed")).toHaveCount(0);
+
+  await active.click();
+  await expect(page.locator("#active-tasks .todo-row")).toContainText(
+    "Added while Active is closed",
+  );
+
+  await page.reload();
+  const reloadedActive = page.locator('button[aria-controls="active-tasks"]');
+  await expect(reloadedActive).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#active-tasks .todo-row")).toContainText(
+    "Added while Active is closed",
+  );
 });
 
 test("places overflow in Standby and collapses disclosures again after reload", async ({ page }) => {
@@ -191,6 +226,35 @@ test("confirmed local-data erasure clears the composer draft", async ({ page }) 
   await dialog.getByRole("button", { name: "Erase local data" }).click();
   await expect(page.getByRole("textbox", { name: "New task" })).toHaveValue("");
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), draftKey)).toBeNull();
+});
+
+test("centers the erase confirmation in the viewport", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await settings.getByRole("button", { name: "Erase local data" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Erase local data?" });
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(box!.x + box!.width / 2).toBeCloseTo(viewport!.width / 2, 0);
+  expect(box!.y + box!.height / 2).toBeCloseTo(viewport!.height / 2, 0);
+});
+
+test("fully covers the app behind the settings dialog", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings).toBeVisible();
+
+  const backdropColor = await settings.evaluate(
+    (dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor,
+  );
+  expect(backdropColor).toBe("rgb(9, 7, 13)");
 });
 
 async function renderWithStartup(

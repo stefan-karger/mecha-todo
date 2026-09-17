@@ -15,10 +15,18 @@ test("renders an accessible empty shell with bundled assets", async ({ page }) =
   await page.goto("/");
 
   await expect(page).toHaveTitle(PRODUCT_NAME);
-  await expect(page.getByRole("heading", { level: 1, name: PRODUCT_NAME })).toBeVisible();
-  await expect(page.getByRole("main")).toContainText(
-    "No active tasks. Add one when you are ready.",
+  await expect(page.getByRole("heading", { name: PRODUCT_NAME })).toHaveCount(0);
+  await expect(page.locator(".product-header")).toHaveCount(0);
+  await expect(page.getByRole("main", { name: "Tasks" })).toContainText(
+    "Nothing active right now. Add a task when you're ready.",
   );
+  const active = page.locator('button[aria-controls="active-tasks"]');
+  await expect(active).toHaveAccessibleName(/Active/);
+  await expect(active).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#active-tasks")).toBeVisible();
+  const settings = page.getByRole("button", { name: "Settings" });
+  await expect(settings).toHaveText("");
+  await expect(settings.locator(".lucide-settings")).toHaveAttribute("aria-hidden", "true");
 
   const fontFamily = await page.locator("body").evaluate((element) =>
     getComputedStyle(element).fontFamily,

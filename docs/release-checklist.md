@@ -12,9 +12,9 @@ Playwright type-checks and builds the application, starts Vite preview on a dedi
 
 | Acceptance criterion | Evidence |
 |---|---|
-| A fresh dataset shows level 0 Cadet and an empty Active Bay. | `tests/e2e/shell.spec.ts`, `tests/e2e/progression-settings-badges.spec.ts` |
+| A fresh dataset shows level 0 Cadet and an open, empty Active section. | `tests/e2e/shell.spec.ts`, `tests/e2e/application.spec.ts`, `tests/e2e/progression-settings-badges.spec.ts` |
 | A valid todo saves in one action and survives reload. | `tests/e2e/application.spec.ts` |
-| Text normalization and the 280-code-point limit match the contract. | `tests/domain/todo-text.spec.ts`, `tests/e2e/release-gates.spec.ts` |
+| Text normalization and the 280-code-point limit match [CONTEXT.md](../CONTEXT.md). | `tests/domain/todo-text.spec.ts`, `tests/e2e/release-gates.spec.ts` |
 | Active, Standby, and Completed ordering remains stable across clock changes. | `tests/e2e/repository.spec.ts` |
 | Capacity affects new placement but never blocks reopen. | `tests/domain/capacity.spec.ts`, `tests/e2e/completion-repository.spec.ts` |
 | Completion and Active deletion share the transaction helper that promotes the oldest Standby todos. | `tests/e2e/completion-repository.spec.ts`, `tests/e2e/delete-repository.spec.ts` |
@@ -56,6 +56,8 @@ Playwright type-checks and builds the application, starts Vite preview on a dedi
 |---|---|
 | The three release viewports pass in Chrome. | `mobile-chrome`, `tablet-chrome`, and `desktop-chrome` projects in `playwright.config.ts` |
 | All viewports use the same one-column, task-first hierarchy. | `tests/e2e/release-gates.spec.ts` |
+| The ready screen starts with progression, keeps todos in the middle scroll region, and ends with the composer without a visible product-name header. | `tests/e2e/shell.spec.ts`, `tests/e2e/release-gates.spec.ts` |
+| Active starts open with a disclosure control; Standby and Completed start closed. | `tests/e2e/application.spec.ts` |
 | Mobile uses dynamic viewport sizing with contained sticky regions. | `tests/e2e/release-gates.spec.ts` |
 | A 280-code-point todo and long rank preserve actions without horizontal overflow. | `tests/e2e/release-gates.spec.ts` |
 | Settings is full-screen on mobile and constrained on tablet and desktop. | `tests/e2e/progression-settings-badges.spec.ts`, `tests/e2e/release-gates.spec.ts` |

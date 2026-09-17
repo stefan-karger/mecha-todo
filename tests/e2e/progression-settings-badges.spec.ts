@@ -104,6 +104,9 @@ test("shows Settings sections, confirms erasure, and manages desktop and mobile 
   await expect(page.getByRole("button", { name: "Keep until erased", exact: true })).toBeVisible();
   await expect(composer).toHaveValue("");
   await composer.fill("unfinished draft");
+  const activeDisclosure = page.locator('button[aria-controls="active-tasks"]');
+  await activeDisclosure.click();
+  await expect(activeDisclosure).toHaveAttribute("aria-expanded", "false");
 
   const settingsButton = page.getByRole("button", { name: "Settings" });
   await settingsButton.click();
@@ -125,13 +128,17 @@ test("shows Settings sections, confirms erasure, and manages desktop and mobile 
   const confirmation = page.getByRole("dialog", { name: "Erase local data?" });
   await expect(confirmation).toBeVisible();
   await confirmation.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("button", { name: "Keep until erased", exact: true })).toBeAttached();
+  await expect(activeDisclosure.locator(".section-count")).toHaveText("1 / 8");
   await expect(page.getByRole("textbox", { name: "New task" })).toHaveValue("unfinished draft");
 
   await settings.getByRole("button", { name: "Erase local data" }).click();
   await confirmation.getByRole("button", { name: "Erase local data" }).click();
   await expect(page.getByRole("button", { name: /Level 0, Cadet/ })).toBeVisible();
   await expect(page.getByText("Active 0 / 8", { exact: true })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
   await expect(page.getByRole("textbox", { name: "New task" })).toHaveValue("");
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -178,7 +185,10 @@ async function mountLinkedDayRepository(page: Page): Promise<void> {
     repositoryPath: "http://127.0.0.1:4174/repository.js",
     fixturePath: "http://127.0.0.1:4174/mount-app.js",
   });
-  await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 }
 
 async function mountRankTransitionRepository(page: Page): Promise<void> {
@@ -256,5 +266,8 @@ async function mountRankTransitionRepository(page: Page): Promise<void> {
     repositoryPath: "http://127.0.0.1:4174/repository.js",
     fixturePath: "http://127.0.0.1:4174/mount-app.js",
   });
-  await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 }

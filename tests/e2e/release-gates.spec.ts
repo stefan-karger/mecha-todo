@@ -5,7 +5,11 @@ test("keeps one responsive task hierarchy with long content at the release viewp
   page,
 }, testInfo) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(page.locator(".product-header")).toHaveCount(0);
 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("The release project must define a viewport.");
@@ -315,5 +319,8 @@ async function mountLongRank(page: Page, todoText: string): Promise<void> {
     fixturePath: "http://127.0.0.1:4174/mount-app.js",
     ranksPath: "http://127.0.0.1:4174/ranks.js",
   });
-  await expect(page.getByRole("heading", { name: "Active Bay" })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 }

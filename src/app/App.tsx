@@ -1,6 +1,5 @@
 import { For, Show, action, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { PRODUCT_NAME } from "../config/product";
 import { loadComposerDraft, saveComposerDraft } from "../persistence/composer-draft";
 import type { TodoRecord, TodoStatus } from "../persistence/models";
 import { DeleteUndoController } from "./delete-undo";
@@ -58,6 +57,7 @@ export function App(props: AppProps = {}) {
   const [undoAvailable, setUndoAvailable] = createSignal(false);
   const deleteUndo = new DeleteUndoController(undefined, setUndoAvailable);
 
+  const [activeOpen, setActiveOpen] = createSignal(true);
   const [standbyOpen, setStandbyOpen] = createSignal(false);
   const [standbyItems, setStandbyItems] = createSignal<TodoRecord[]>([]);
   const [standbyCursor, setStandbyCursor] = createSignal<TodoPageCursor | null>(null);
@@ -100,7 +100,8 @@ export function App(props: AppProps = {}) {
     repository.close();
   });
 
-  const resetBrowseState = (): void => {
+  const resetTaskSections = (): void => {
+    setActiveOpen(true);
     setStandbyOpen(false);
     setStandbyItems([]);
     setStandbyCursor(null);
@@ -439,7 +440,7 @@ export function App(props: AppProps = {}) {
     if (settingsDialog?.open) settingsDialog.close();
     deleteUndo.clear();
     setEditState(null);
-    resetBrowseState();
+    resetTaskSections();
     setDraft("");
     saveComposerDraft("");
     setComposerError("");
@@ -449,19 +450,15 @@ export function App(props: AppProps = {}) {
 
   return (
     <div class="app-shell">
-      <header class="product-header">
-        <h1>{PRODUCT_NAME}</h1>
-      </header>
-
       <Show when={state().kind === "opening"}>
-        <main class="system-state" aria-busy="true">
+        <main class="system-state" aria-busy="true" aria-label="Opening local data">
           <span class="state-indicator" aria-hidden="true" />
           <p>Opening local data...</p>
         </main>
       </Show>
 
       <Show when={state().kind === "blocked"}>
-        <main class="system-state system-state--warning">
+        <main class="system-state system-state--warning" aria-label="Local data is in use">
           <p>{(state() as Extract<ApplicationState, { kind: "blocked" }>).message}</p>
           <button class="button button--primary" type="button" onClick={retry}>Retry</button>
         </main>
@@ -487,7 +484,8 @@ export function App(props: AppProps = {}) {
         {(() => {
           const viewState = () => (state() as ReadyState).viewState;
           return (
-            <main class="task-system" aria-labelledby="active-bay-heading">
+            <main class="task-system" aria-labelledby="task-system-title">
+              <h1 id="task-system-title" class="sr-only">Tasks</h1>
               <section class="hud" aria-label="Progression status">
                 <button
                   class="badge-control"
@@ -520,7 +518,29 @@ export function App(props: AppProps = {}) {
                   value={viewState().progression.xpForCurrentLevel}
                 />
                 <div class="hud-side">
-                  <button class="settings-trigger" type="button" onClick={openSettings}>Settings</button>
+                  <button
+                    class="settings-trigger"
+                    type="button"
+                    aria-label="Settings"
+                    onClick={openSettings}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-settings"
+                      aria-hidden="true"
+                    >
+                      <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
                   <p class="hud-capacity">Active {numberFormatter.format(viewState().activeTodos.length)} / {numberFormatter.format(viewState().activeCapacity)}</p>
                   <Show when={viewState().rewardHud.link ?? viewState().rewardHud.combo}>
                     <p class="hud-reward-state">
@@ -535,33 +555,31 @@ export function App(props: AppProps = {}) {
               </section>
 
               <div class="task-scroll-region" tabindex="-1" role="region" aria-label="Task lists">
-                <section class="active-bay">
-                  <div class="section-heading">
-                    <h2 id="active-bay-heading">Active Bay</h2>
-                    <span aria-label={`${viewState().activeTodos.length} active tasks out of ${viewState().activeCapacity}`}>
-                      {viewState().activeTodos.length} / {viewState().activeCapacity}
-                    </span>
-                  </div>
-                  <Show when={viewState().activeTodos.length > 0} fallback={<p class="empty-state">No active tasks. Add one when you are ready.</p>}>
-                    <TodoList
-                      items={viewState().activeTodos}
-                      editState={editState()}
-                      optimisticStatuses={optimisticStatuses()}
-                      pendingCompletionIds={pendingCompletionIds()}
-                      pendingDeleteIds={pendingDeleteIds()}
-                      onCancelEdit={cancelEdit}
-                      onChangeEditDraft={changeEditDraft}
-                      onDelete={(todo) => void deleteTodo(todo)}
-                      onSaveEdit={(id) => void saveEdit(id)}
-                      onStartEdit={startEdit}
-                      onToggle={(todo) => void toggleTodo(todo)}
-                    />
-                  </Show>
-                </section>
+                <TodoSection
+                  count={viewState().activeTodos.length}
+                  countLabel={`${viewState().activeTodos.length} / ${viewState().activeCapacity}`}
+                  countAriaLabel={`${viewState().activeTodos.length} active tasks out of ${viewState().activeCapacity}`}
+                  emptyCopy="Nothing active right now. Add a task when you're ready."
+                  items={viewState().activeTodos}
+                  open={activeOpen()}
+                  status="active"
+                  title="Active"
+                  editState={editState()}
+                  optimisticStatuses={optimisticStatuses()}
+                  pendingCompletionIds={pendingCompletionIds()}
+                  pendingDeleteIds={pendingDeleteIds()}
+                  onCancelEdit={cancelEdit}
+                  onChangeEditDraft={changeEditDraft}
+                  onDelete={(todo) => void deleteTodo(todo)}
+                  onSaveEdit={(id) => void saveEdit(id)}
+                  onStartEdit={startEdit}
+                  onToggle={() => setActiveOpen((open) => !open)}
+                  onToggleTodo={(todo) => void toggleTodo(todo)}
+                />
 
-                <BrowseSection
+                <TodoSection
                   count={viewState().standbyCount}
-                  emptyCopy="No tasks in Standby."
+                  emptyCopy="Nothing on standby right now. Extra tasks will wait here."
                   hasMore={standbyHasMore()}
                   items={standbyItems()}
                   loading={standbyLoading()}
@@ -582,9 +600,9 @@ export function App(props: AppProps = {}) {
                   onToggle={() => toggleBrowse("standby", viewState().standbyCount)}
                   onToggleTodo={(todo) => void toggleTodo(todo)}
                 />
-                <BrowseSection
+                <TodoSection
                   count={viewState().completedCount}
-                  emptyCopy="No completed tasks yet."
+                  emptyCopy="Nothing completed yet. Finished tasks will collect here."
                   hasMore={completedHasMore()}
                   items={completedItems()}
                   loading={completedLoading()}
@@ -707,15 +725,17 @@ function completionFeedback(
   return parts.join(" · ");
 }
 
-type BrowseSectionProps = Readonly<{
+type TodoSectionProps = Readonly<{
   count: number;
+  countLabel?: string;
+  countAriaLabel?: string;
   emptyCopy: string;
-  hasMore: boolean;
+  hasMore?: boolean;
   items: TodoRecord[];
-  loading: boolean;
-  moreLabel: string;
+  loading?: boolean;
+  moreLabel?: string;
   open: boolean;
-  status: BrowseStatus;
+  status: TodoStatus;
   title: string;
   editState: EditState | null;
   optimisticStatuses: Readonly<Record<string, TodoStatus>>;
@@ -724,24 +744,30 @@ type BrowseSectionProps = Readonly<{
   onCancelEdit: (id: string) => void;
   onChangeEditDraft: JSX.EventHandler<HTMLInputElement, InputEvent>;
   onDelete: (todo: TodoRecord) => void;
-  onLoadMore: () => void;
+  onLoadMore?: () => void;
   onSaveEdit: (id: string) => void;
   onStartEdit: (todo: TodoRecord) => void;
   onToggle: () => void;
   onToggleTodo: (todo: TodoRecord) => void;
 }>;
 
-function BrowseSection(props: BrowseSectionProps) {
+function TodoSection(props: TodoSectionProps) {
   const panelId = () => `${props.status}-tasks`;
+  const labelId = () => `${props.status}-section-label`;
   return (
-    <section class="browse-section">
+    <section
+      class={`task-section${props.status === "active" ? " active-bay" : ""}`}
+      aria-labelledby={labelId()}
+    >
       <button class="disclosure" type="button" aria-controls={panelId()} aria-expanded={props.open ? "true" : "false"} onClick={props.onToggle}>
         <span class="disclosure-marker" aria-hidden="true">{props.open ? "−" : "+"}</span>
-        <span>{props.title}</span>
-        <span class="section-count">{props.count}</span>
+        <span id={labelId()}>{props.title}</span>
+        <span class="section-count" aria-label={props.countAriaLabel}>
+          {props.countLabel ?? props.count}
+        </span>
       </button>
       <Show when={props.open}>
-        <div id={panelId()} class="browse-panel" aria-busy={props.loading ? "true" : "false"}>
+        <div id={panelId()} class="task-section-panel" aria-busy={props.loading ? "true" : "false"}>
           <Show when={props.count > 0} fallback={<p class="empty-state">{props.emptyCopy}</p>}>
             <TodoList
               items={props.items}
@@ -760,7 +786,7 @@ function BrowseSection(props: BrowseSectionProps) {
               <p class="loading-copy">Loading tasks...</p>
             </Show>
             <Show when={props.hasMore}>
-              <button class="load-more" type="button" disabled={props.loading} onClick={props.onLoadMore}>
+              <button class="load-more" type="button" disabled={props.loading} onClick={() => props.onLoadMore?.()}>
                 {props.loading ? "Loading..." : props.moreLabel}
               </button>
             </Show>

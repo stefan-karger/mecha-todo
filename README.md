@@ -14,18 +14,18 @@ MECHA//TODO is a personal todo list built around one short loop: capture a real 
 
 The task list stays at the center. Progression adds immediate feedback without introducing currencies, inventories, streak penalties, or another system to maintain.
 
-The planned interface draws from late-1990s mecha command systems while using original artwork and product language.
+The interface draws from late-1990s mecha command systems while using original artwork and product language.
 
 ## Project status
 
-MECHA//TODO V1 implementation is complete. The repository contains the application, its automated test suite, the approved V1 implementation plan, and visual assets. Production deployment is deferred.
+MECHA//TODO V1 implementation is complete. The repository contains the application, its automated test suite, the V1 domain contract, and visual assets. Production deployment is deferred.
 
-The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and engineering contract. It takes precedence over the earlier [product handoff](docs/MECHA_TODO_IDEA_V4.md) where the two differ.
+The [domain context](CONTEXT.md) records the product boundaries, vocabulary, and behavior that must remain stable across implementation changes.
 
 ## V1 capabilities
 
 - Add, edit, complete, reopen, and delete one-line todos.
-- Keep a focused Active Bay with overflow in a Standby queue.
+- Keep Active open by default with overflow in a Standby queue.
 - Award XP only on a todo's first completion.
 - Track levels, procedural ranks, and deterministic pixel badges.
 - Store todos and progression locally in IndexedDB with no account or cloud sync.
@@ -42,7 +42,7 @@ The [implementation plan](IMPLEMENTATION_PLAN.md) is the current product and eng
 - Valibot
 - Playwright
 
-The implementation plan pins the initial dependency versions and defines the compatibility checks required before application work begins.
+Exact dependency versions live in `package.json` and `package-lock.json`.
 
 ## Product boundaries
 
@@ -70,4 +70,4 @@ npm run test:smoke
 npm run release:check
 ```
 
-The [V1 release checklist](docs/release-checklist.md) maps each locally verified acceptance criterion to its automated evidence.
+The [V1 release checklist](docs/release-checklist.md) maps each locally verified acceptance criterion to its automated evidence. Keep it until the first production deployment passes its smoke test.
