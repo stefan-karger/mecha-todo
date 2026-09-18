@@ -12,5 +12,4 @@ export const REWARD_RULES_V1 = Object.freeze({
   ]) as ReadonlyMap<number, Exclude<ComboBonus, 0>>,
   curveAnchorLevel: 100 as const,
   todosAtLevel100: 500 as const,
-  levelsPerRank: 5 as const,
 });

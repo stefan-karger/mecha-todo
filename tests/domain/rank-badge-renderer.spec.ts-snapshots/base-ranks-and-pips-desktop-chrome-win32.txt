@@ -6,8 +6,8 @@
   },
   {
     "level": 5,
-    "rank": "Trooper",
-    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"trooper-twin-chevron\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M6 6h5l5 6 5-6h5L16 19zM8 19h5l3 3 3-3h5l-8 8z\"/></g></svg>"
+    "rank": "Specialist",
+    "svg": "<svg viewBox=\"0 0 32 32\" shape-rendering=\"crispEdges\" aria-hidden=\"true\" focusable=\"false\" data-silhouette=\"specialist-twin-chevron\" data-pips=\"0\"><g fill=\"currentColor\"><path d=\"M6 6h5l5 6 5-6h5L16 19zM8 19h5l3 3 3-3h5l-8 8z\"/></g></svg>"
   },
   {
     "level": 10,

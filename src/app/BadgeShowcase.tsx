@@ -1,8 +1,18 @@
 import { For } from "solid-js";
-import { BASE_RANKS, PRESTIGE_ATOMS, rankForLevel } from "../domain/ranks";
+import { BASE_RANKS, rankForLevel } from "../domain/ranks";
 import { RankBadge } from "./RankBadge";
 
 const PIP_STATES = [0, 1, 2, 3, 4] as const;
+const PRESTIGE_ATOMS = [
+  "Prime",
+  "Vanguard",
+  "Apex",
+  "Ascendant",
+  "Sovereign",
+  "Stellar",
+  "Omega",
+  "Eternal",
+] as const;
 const PRESTIGE_LEVELS = PRESTIGE_ATOMS.map((_, index) => (BASE_RANKS.length + index) * 5);
 const STRESS_LEVELS = [85, 90, 405, 725, 5_000] as const;
 const SCALE_SAMPLES = [16, 24, 32, 48, 72, 112] as const;

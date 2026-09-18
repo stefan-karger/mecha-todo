@@ -69,9 +69,9 @@ test("presents committed rank, capacity, and multi-slot promotion in one result"
   await page.getByRole("checkbox", { name: "Complete Active 0" }).click();
 
   await expect(page.getByRole("status")).toContainText(
-    "RANK TROOPER · CAPACITY 9 · 2 STANDBY TASKS PROMOTED",
+    "RANK SPECIALIST · CAPACITY 9 · 2 STANDBY TASKS PROMOTED",
   );
-  await expect(page.getByRole("button", { name: /Level 5, Trooper/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Level 5, Specialist/ })).toBeVisible();
   await expect(page.getByText("Active 9 / 9", { exact: true })).toBeVisible();
   await expect(
     page.locator(".active-bay").getByRole("button", { name: "Standby 0", exact: true }),

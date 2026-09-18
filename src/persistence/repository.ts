@@ -8,7 +8,7 @@ import {
   type LocalCalendarDate,
 } from "../domain/day-key";
 import { progressionForTotalXp, type Progression } from "../domain/progression";
-import { rankForLevel } from "../domain/ranks";
+import { progressionIdentityForLevel } from "../domain/ranks";
 import { calculateCompletionAward } from "../domain/rewards";
 import { createTodoId, normalizeTodoText, type InvalidTodoText } from "../domain/todo-text";
 import { clearComposerDraft } from "./composer-draft";
@@ -299,13 +299,14 @@ export class IndexedDbAppRepository implements AppRepository {
     }
 
     const progression = progressionForTotalXp(stats.lifetimeXp);
+    const identity = progressionIdentityForLevel(progression.level);
 
     return Object.freeze({
       activeTodos,
       standbyCount,
       completedCount,
       progression,
-      rank: rankForLevel(progression.level),
+      rank: identity.rank,
       activeCapacity: activeCapacity(progression.level),
       rewardHud,
     });

@@ -8,7 +8,7 @@ type RankBadgeProps = Readonly<{
 
 const SILHOUETTES: Readonly<Record<BadgeDescriptor["silhouette"], string>> = {
   "cadet-chevron": '<path d="M7 9h5l4 5 4-5h5l-9 12z"/>',
-  "trooper-twin-chevron": '<path d="M6 6h5l5 6 5-6h5L16 19zM8 19h5l3 3 3-3h5l-8 8z"/>',
+  "specialist-twin-chevron": '<path d="M6 6h5l5 6 5-6h5L16 19zM8 19h5l3 3 3-3h5l-8 8z"/>',
   "sergeant-stepped-chevron": '<path d="M5 6h6v4h3v4h4v-4h3V6h6v8h-4v4h-4v4h-6v-4H9v-4H5z"/>',
   "lieutenant-diamond": '<path d="M16 3 27 16 16 29 5 16zm0 6-6 7 6 7 6-7z" fill-rule="evenodd"/>',
   "captain-double-diamond": '<path d="M10 4 19 13 10 22 1 13zm12 6 7 7-7 7-7-7zm-12 1-2 2 2 2 2-2zm12 5-1 1 1 1 1-1z"/>',

@@ -1,11 +1,11 @@
 import { assertNonnegativeSafeInteger } from "./nonnegative-safe-integer";
-import { BASE_RANKS, PRESTIGE_ATOMS, rankForLevel } from "./ranks";
+import { BASE_RANKS, rankForLevel } from "./ranks";
 
 export const BADGE_VIEW_BOX = "0 0 32 32" as const;
 
 export const BASE_RANK_SILHOUETTES = {
   Cadet: "cadet-chevron",
-  Trooper: "trooper-twin-chevron",
+  Specialist: "specialist-twin-chevron",
   Sergeant: "sergeant-stepped-chevron",
   Lieutenant: "lieutenant-diamond",
   Captain: "captain-double-diamond",
@@ -26,8 +26,19 @@ export const PRESTIGE_MODIFIERS = {
   Eternal: "outer-ring",
 } as const;
 
+const LEGACY_PRESTIGE_ATOMS = [
+  "Prime",
+  "Vanguard",
+  "Apex",
+  "Ascendant",
+  "Sovereign",
+  "Stellar",
+  "Omega",
+  "Eternal",
+] as const;
+
 export type BaseRank = (typeof BASE_RANKS)[number];
-export type PrestigeAtom = (typeof PRESTIGE_ATOMS)[number];
+export type PrestigeAtom = (typeof LEGACY_PRESTIGE_ATOMS)[number];
 export type BadgeSilhouette = (typeof BASE_RANK_SILHOUETTES)[BaseRank];
 export type PrestigeModifier = (typeof PRESTIGE_MODIFIERS)[PrestigeAtom];
 export type PipCount = 0 | 1 | 2 | 3 | 4;

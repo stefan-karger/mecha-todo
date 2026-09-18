@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { activeCapacity } from "../../src/domain/capacity";
+import {
+  ACTIVE_CAPACITY_LEVELS_PER_STEP,
+  activeCapacity,
+} from "../../src/domain/capacity";
+import { REWARD_RULES_V1 } from "../../src/config/rules-v1";
+
+test("owns its level step independently from award rules", () => {
+  expect(ACTIVE_CAPACITY_LEVELS_PER_STEP).toBe(5);
+  expect(REWARD_RULES_V1).not.toHaveProperty("levelsPerRank");
+});
 
 test("increases Active Bay capacity every five levels through the cap", () => {
   const boundaries = [
