@@ -5,7 +5,7 @@
 <h1 align="center">MECHA//TODO</h1>
 
 <p align="center">
-  An ADHD-friendly, browser-local todo web app with lightweight XP, ranks, and pixel badges.
+  An ADHD-friendly, browser-local todo web app with lightweight XP, ranks, and vector badges.
 </p>
 
 ## About
@@ -27,7 +27,7 @@ The [domain context](CONTEXT.md) records the product boundaries, vocabulary, and
 - Add, edit, complete, reopen, and delete one-line todos.
 - Keep Active open by default with overflow in a Standby queue.
 - Award XP only on a todo's first completion.
-- Track levels, procedural ranks, and deterministic pixel badges.
+- Track levels, ranks, and deterministic single-color vector badges.
 - Store todos and progression locally in IndexedDB with no account or cloud sync.
 - Fit mobile, tablet, and desktop screens through one responsive task-first layout.
 - Report local-data failures without silently deleting or replacing stored data.

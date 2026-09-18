@@ -142,6 +142,10 @@ Use sentence case for actions, errors, empty states, confirmations, and explanat
 
 The visual language draws from late-1990s mecha command displays without copying franchise assets. The procedural badge carries most of the character. Borders and color communicate structure or state. Avoid decorative grids, gradients, glass effects, ornamental telemetry, and motion that does not explain a state change.
 
+Badge artwork follows the user's visual references. Use the light shapes in `docs/assets/badges_concept.png` for the base family, with `docs/assets/badge-colonel-refined.png` and `docs/assets/badge-marshal-refined.png` superseding Colonel and Marshal. Lieutenant and Major use one solid diamond each, without a center seam. General uses a solid five-point star without a center cutout. Colonel has a wider hexagonal frame, a pointed central bar, and inward-facing side bars. Marshal has a tall diamond, two triangular shoulders, a broad continuous V, and two separate lower wing pieces.
+
+Badges are simplified, single-color vectors with transparent negative space; smooth diagonals and fractional coordinates are allowed, and pixel-art rendering is not required. Preserve structural chevrons, wing bars, and light frames. Omit decorative accents, dark outlines, shading, and texture. New user-approved visual directions supersede older prose; update the documentation instead of deforming the artwork to fit it. Final SVG approval remains separate from implementation.
+
 Every action must work with touch, mouse, and keyboard. Interactive targets are at least 44 by 44 CSS pixels. Preserve visible focus, semantic names, reduced motion, forced-colors support, readable completed text, managed dialog focus, and no horizontal overflow at the release viewports.
 
 ## Release and future changes

@@ -5,7 +5,8 @@ test("shows first-completion XP, every COMBO state, re-completion, and retained 
 
   await expect(page.getByRole("button", { name: /Open Progression details\. Level 0, Cadet/ })).toBeVisible();
   await expect(page.getByRole("progressbar")).toHaveAttribute("value", "0");
-  await expect(page.getByText("Active 0 / 8", { exact: true })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"] .section-count')).toHaveText("0 / 8");
+  await expect(page.locator(".hud")).not.toContainText("Active");
   await expect(page.getByRole("status")).toHaveCount(1);
 
   for (let ordinal = 1; ordinal <= 20; ordinal += 1) {
@@ -65,25 +66,25 @@ test("presents committed rank, capacity, and multi-slot promotion in one result"
   await mountRankTransitionRepository(page);
 
   await expect(page.getByRole("button", { name: /Level 4, Cadet/ })).toBeVisible();
-  await expect(page.getByText("Active 8 / 8", { exact: true })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"] .section-count')).toHaveText("8 / 8");
   await page.getByRole("checkbox", { name: "Complete Active 0" }).click();
 
   await expect(page.getByRole("status")).toContainText(
     "RANK SPECIALIST · CAPACITY 9 · 2 STANDBY TASKS PROMOTED",
   );
   await expect(page.getByRole("button", { name: /Level 5, Specialist/ })).toBeVisible();
-  await expect(page.getByText("Active 9 / 9", { exact: true })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"] .section-count')).toHaveText("9 / 9");
   await expect(
     page.locator(".active-bay").getByRole("button", { name: "Standby 0", exact: true }),
   ).toBeVisible();
 });
 
-test("renders hidden crisp SVG badges at compact and detail sizes with canonical rank text", async ({ page }) => {
+test("renders hidden smooth SVG badges at compact and detail sizes with canonical rank text", async ({ page }) => {
   await page.goto("/");
 
   const compactBadge = page.locator(".hud .rank-badge");
   await expect(compactBadge.locator("svg")).toHaveAttribute("viewBox", "0 0 32 32");
-  await expect(compactBadge.locator("svg")).toHaveAttribute("shape-rendering", "crispEdges");
+  await expect(compactBadge.locator("svg")).not.toHaveAttribute("shape-rendering", "crispEdges");
   await expect(compactBadge.locator("svg")).toHaveAttribute("aria-hidden", "true");
   const compactBox = await compactBadge.boundingBox();
   expect(compactBox?.width).toBeGreaterThanOrEqual(44);
@@ -134,7 +135,7 @@ test("shows Settings sections, confirms erasure, and manages desktop and mobile 
   await settings.getByRole("button", { name: "Erase local data" }).click();
   await confirmation.getByRole("button", { name: "Erase local data" }).click();
   await expect(page.getByRole("button", { name: /Level 0, Cadet/ })).toBeVisible();
-  await expect(page.getByText("Active 0 / 8", { exact: true })).toBeVisible();
+  await expect(page.locator('button[aria-controls="active-tasks"] .section-count')).toHaveText("0 / 8");
   await expect(page.locator('button[aria-controls="active-tasks"]')).toHaveAttribute(
     "aria-expanded",
     "true",

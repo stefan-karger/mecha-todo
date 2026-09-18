@@ -4,12 +4,13 @@ import { expect, test } from "@playwright/test";
 test("renders the temporary badge inspection route", async ({ page }, testInfo) => {
   await page.goto("/badge");
 
-  await expect(page).toHaveTitle("Badge inspection bench | MECHA//TODO");
-  await expect(page.getByRole("heading", { level: 1, name: "Badge inspection bench" })).toBeVisible();
-  await expect(page.locator(".badge-matrix .rank-badge")).toHaveCount(45);
-  await expect(page.locator(".atom-rack .rank-badge")).toHaveCount(8);
-  await expect(page.locator(".badge-stress-rack .rank-badge")).toHaveCount(5);
-  await expect(page.getByText("Prime-Omega-Apex-Eternal Marshal", { exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Badge review | MECHA//TODO");
+  await expect(page.getByRole("heading", { level: 1, name: "Badge review" })).toBeVisible();
+  await expect(page.locator(".badge-comparisons .rank-badge")).toHaveCount(18);
+  await expect(page.locator(".badge-pip-list .rank-badge")).toHaveCount(40);
+  await expect(page.locator(".badge-size-list .rank-badge")).toHaveCount(54);
+  await expect(page.locator(".badge-marshal-samples .rank-badge")).toHaveCount(2);
+  await expect(page.getByText(/Designation artwork is pending ticket 03/)).toBeVisible();
 
   const accessibilityResults = await new AxeBuilder({ page }).analyze();
   expect(accessibilityResults.violations).toEqual([]);
@@ -25,8 +26,9 @@ test("renders the temporary badge inspection route", async ({ page }, testInfo) 
   }));
   expect(pageMetrics.scrollWidth).toBe(pageMetrics.clientWidth);
   expect(pageMetrics.scrollHeight).toBeGreaterThan(pageMetrics.clientHeight);
-  await page.getByRole("heading", { name: "Rendering calibration" }).scrollIntoViewIfNeeded();
-  await expect(page.getByRole("heading", { name: "Rendering calibration" })).toBeInViewport();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole("heading", { name: "Size checks" }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole("heading", { name: "Size checks" })).toBeInViewport();
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await page.screenshot({ path: testInfo.outputPath("badge-mobile.png"), fullPage: true });
 });

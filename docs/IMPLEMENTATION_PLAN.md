@@ -292,23 +292,25 @@ Behavior:
 
 ### Base-rank silhouettes
 
+Visual direction clarified on 2026-09-18: use the light shapes in [badges_concept.png](assets/badges_concept.png), with the later [Colonel reference](assets/badge-colonel-refined.png) and [Marshal reference](assets/badge-marshal-refined.png) superseding those two badges. Lieutenant and Major have solid diamonds without seams; General has a solid star without a cutout. Omit decorative accents and dark outlines, but keep the light chevrons, wing bars, and frames. Simplified single-color vector geometry replaces the earlier pixel-rendering preference. This direction does not constitute approval of final SVG paths.
+
 Use one handcrafted silhouette for each base rank:
 
 | Rank | Silhouette direction |
 |---|---|
-| Cadet | Basic chevron |
-| Specialist | Double chevron |
-| Sergeant | Stepped chevron |
-| Lieutenant | Diamond |
-| Captain | Double diamond |
-| Major | Winged diamond |
-| Colonel | Shield with bars |
-| General | Star with wings |
-| Marshal | Heavy crest |
+| Cadet | One broad, shallow V band |
+| Specialist | Two equal-width matching V bands |
+| Sergeant | Three separate matching V bands |
+| Lieutenant | One tall solid diamond without a center seam |
+| Captain | Two filled diamonds stacked on one vertical axis |
+| Major | One solid diamond without a center seam, with three horizontal wing tiers per side |
+| Colonel | Wider hexagonal light frame, pointed central bar, and two inward-facing side bars |
+| General | Solid five-point star without a cutout, with three horizontal wing tiers per side |
+| Marshal | Tall central diamond, two triangular shoulders, broad continuous V, and two lower wing pieces |
 
 The first three form a chevron family. The next three form a diamond family. The final three form a command family. The shapes must look related without directly copying a real service's insignia.
 
-Current paths are starting material, not protected output. The old Trooper geometry may inform Specialist, but the final family requires visual review as a whole.
+The supplied images and subsequent explicit user refinements are the visual authority. Do not import other insignia references. When a newer direction conflicts with older prose, revise the prose. Existing paths are replaceable implementation details, not design references. Preserve each badge's aspect ratio and important transparent gaps; do not force all badges to fill an equal-width square. The final family requires visual review as a whole. See the [reconstruction audit and per-rank plan](../.scratch/rank-designation-badge-upgrade/badge-reconstruction-plan.md).
 
 ### Pips
 
@@ -327,6 +329,7 @@ Plain Marshal and every Marshal designation show no pips. The descriptor type sh
 ### Canonical geometry
 
 - Keep one canonical `0 0 32 32` coordinate system.
+- Allow fractional coordinates and smooth vector diagonals; the viewBox is not a pixel grid.
 - Use the same geometry at every rendered size.
 - Optimize first for 44 and 48 CSS pixels.
 - Use 96 and 112 pixels for the detail view.
@@ -334,7 +337,7 @@ Plain Marshal and every Marshal designation show no pips. The descriptor type sh
 - Do not require meaningful recognition at 16 pixels.
 - Do not create compact and large SVG families.
 
-The current Marshal silhouette occupies nearly the full 32-unit width. Redraw it with reserved interior and perimeter zones before adding designation fragments.
+Reconstruct and review plain Marshal from the revised Marshal reference before assigning interior and perimeter zones to designation fragments. Do not distort its base silhouette merely to accommodate the later additions.
 
 ### Marshal designation fragments
 
@@ -390,7 +393,7 @@ Requirements:
 
 - deterministic output;
 - `currentColor` for normal theming;
-- `shape-rendering="crispEdges"` unless visual review proves a specific element needs another setting;
+- normal SVG rendering, or `shape-rendering="geometricPrecision"` after comparison; no forced `crispEdges` or pixel-grid snapping;
 - no random values;
 - no prestige hash;
 - no dynamic path generation;

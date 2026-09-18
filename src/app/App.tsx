@@ -495,7 +495,6 @@ export function App(props: AppProps = {}) {
                 >
                   <RankBadge
                     level={viewState().progression.level}
-                    rank={viewState().rank}
                     size="compact"
                   />
                 </button>
@@ -541,7 +540,6 @@ export function App(props: AppProps = {}) {
                       <circle cx="12" cy="12" r="3" />
                     </svg>
                   </button>
-                  <p class="hud-capacity">Active {numberFormatter.format(viewState().activeTodos.length)} / {numberFormatter.format(viewState().activeCapacity)}</p>
                   <Show when={viewState().rewardHud.link ?? viewState().rewardHud.combo}>
                     <p class="hud-reward-state">
                       {viewState().rewardHud.link === "ready"
@@ -845,7 +843,7 @@ function TodoList(props: TodoListProps) {
                 onClick={() => props.onToggle(todo)}
               >
                 <span aria-hidden="true">
-                  {visualStatus() === "completed" ? "✓" : visualStatus() === "standby" ? "Ⅱ" : "●"}
+                  {visualStatus() === "completed" ? "✓" : visualStatus() === "standby" ? "Ⅱ" : "□"}
                 </span>
               </button>
 

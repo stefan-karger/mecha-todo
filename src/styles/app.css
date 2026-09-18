@@ -245,357 +245,13 @@ progress {
   height: 112px;
 }
 
-.badge-lab {
-  --lab-amber: #ffc857;
-  --lab-blue: #71b7ff;
-  width: min(100%, 1180px);
-  min-height: 100vh;
-  margin-inline: auto;
-  padding: 42px clamp(16px, 4vw, 48px) 80px;
-}
-
-.badge-lab__header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 32px;
-  align-items: end;
-  padding: 0 0 28px;
-  border-bottom: 2px solid var(--color-primary);
-}
-
-.badge-lab__kicker {
-  margin: 0 0 8px;
-  color: var(--lab-amber);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.badge-lab h1 {
-  max-width: 14ch;
-  margin: 0;
-  font-size: clamp(2rem, 6vw, 4.5rem);
-  font-weight: 780;
-  letter-spacing: -0.075em;
-  line-height: 0.92;
-}
-
-.badge-lab__intro {
-  max-width: 64ch;
-  margin: 20px 0 0;
-  color: var(--color-muted);
-  font-size: 0.875rem;
-}
-
-.badge-lab__home {
-  min-height: 44px;
-  padding: 11px 0;
-  color: var(--lab-blue);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  text-underline-offset: 4px;
-}
-
-.badge-lab__section {
-  padding: 42px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.badge-lab__section-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
-  gap: 24px;
-  align-items: baseline;
-  margin-bottom: 22px;
-}
-
-.badge-lab__section-heading h2 {
-  margin: 0;
-  font-size: clamp(1.125rem, 2.5vw, 1.5rem);
-  font-weight: 740;
-  letter-spacing: -0.035em;
-}
-
-.badge-lab__section-heading p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.75rem;
-  line-height: 1.4;
-}
-
-.badge-matrix {
-  min-width: 680px;
-  border-top: 1px solid var(--color-border);
-  border-left: 1px solid var(--color-border);
-}
-
-.badge-lab__section:has(.badge-matrix) {
-  overflow-x: auto;
-}
-
-.badge-matrix__head,
-.badge-matrix__row {
-  display: grid;
-  grid-template-columns: minmax(132px, 1.35fr) repeat(5, minmax(88px, 1fr));
-}
-
-.badge-matrix__head > *,
-.badge-matrix__rank,
-.badge-matrix__cell {
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.badge-matrix__head > * {
-  padding: 8px 12px;
-  color: var(--color-muted);
-  font-size: 0.625rem;
-  font-weight: 650;
-  text-align: center;
-}
-
-.badge-matrix__head > :first-child {
-  text-align: left;
-}
-
-.badge-matrix__rank {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  padding: 12px;
-}
-
-.badge-matrix__rank strong {
-  font-size: 0.8125rem;
-}
-
-.badge-matrix__rank span,
-.badge-matrix__cell > span,
-.atom-rack span,
-.badge-stress-rack span,
-.scale-ruler span,
-.ink-rack span {
-  color: var(--color-muted);
-  font-size: 0.625rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.badge-matrix__cell {
-  display: grid;
-  place-items: center;
-  gap: 5px;
-  min-height: 82px;
-  padding: 8px;
-  background-image: linear-gradient(var(--color-surface) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-surface) 1px, transparent 1px);
-  background-size: 8px 8px;
-}
-
-.badge-matrix__cell .rank-badge {
-  color: var(--lab-blue);
-}
-
-.atom-rack {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(112px, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  overflow-x: auto;
-}
-
-.atom-rack li {
-  display: grid;
-  justify-items: center;
-  gap: 7px;
-  padding: 20px 8px 16px;
-  border: 1px solid var(--color-border);
-  border-right: 0;
-}
-
-.atom-rack li:last-child {
-  border-right: 1px solid var(--color-border);
-}
-
-.atom-rack .rank-badge {
-  width: 82px;
-  height: 82px;
-  color: var(--lab-amber);
-}
-
-.atom-rack strong {
-  font-size: 0.6875rem;
-}
-
-.badge-stress-rack {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  border: 1px solid var(--color-border);
-}
-
-.badge-stress-rack article {
-  min-width: 0;
-  border-right: 1px solid var(--color-border);
-}
-
-.badge-stress-rack article:last-child {
-  border-right: 0;
-}
-
-.badge-stress-rack__mark {
-  display: grid;
-  place-items: center;
-  min-height: 170px;
-  background: var(--color-surface);
-}
-
-.badge-stress-rack article:nth-child(2n) .rank-badge {
-  color: var(--lab-blue);
-}
-
-.badge-stress-rack article > div:last-child {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
-  border-top: 1px solid var(--color-border);
-}
-
-.badge-stress-rack strong {
-  min-height: 4em;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.calibration-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(220px, 0.7fr);
-  border: 1px solid var(--color-border);
-}
-
-.scale-ruler {
-  display: flex;
-  align-items: end;
-  justify-content: space-around;
-  gap: 20px;
-  min-height: 174px;
-  padding: 24px;
-  border-right: 1px solid var(--color-border);
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0 31px,
-    color-mix(in srgb, var(--lab-amber) 24%, transparent) 31px 32px
-  );
-  overflow-x: auto;
-}
-
-.scale-ruler > div,
-.ink-rack > div {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-
-.scale-ruler .rank-badge {
-  width: var(--sample-size);
-  height: var(--sample-size);
-  color: var(--lab-amber);
-}
-
-.ink-rack {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.ink-rack > div {
-  place-content: center;
-  min-height: 116px;
-  padding: 12px;
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.ink-rack > div:nth-child(2n) {
-  border-right: 0;
-}
-
-.ink-rack > div:nth-last-child(-n + 2) {
-  border-bottom: 0;
-}
-
-.ink-rack .rank-badge {
-  color: var(--sample-ink);
-}
-
-@media (max-width: 760px) {
-  .badge-lab {
-    padding-top: 24px;
-  }
-
-  .badge-lab__header,
-  .badge-lab__section-heading,
-  .calibration-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .badge-lab__header {
-    align-items: start;
-  }
-
-  .badge-lab__home {
-    justify-self: start;
-  }
-
-  .badge-stress-rack {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .badge-stress-rack article {
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .badge-stress-rack article:nth-child(2n) {
-    border-right: 0;
-  }
-
-  .badge-stress-rack article:last-child {
-    border-bottom: 0;
-  }
-
-  .scale-ruler {
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-}
-
-@media (max-width: 440px) {
-  .badge-lab__section {
-    padding-block: 32px;
-  }
-
-  .badge-stress-rack {
-    grid-template-columns: 1fr;
-  }
-
-  .badge-stress-rack article {
-    border-right: 0;
-  }
-
-  .badge-stress-rack__mark {
-    min-height: 150px;
-  }
-}
-
 .hud-level {
   grid-area: level;
   min-width: 0;
 }
 
 .hud-rank-button,
-.hud-xp,
-.hud-capacity {
+.hud-xp {
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -655,6 +311,7 @@ progress {
 .hud-side {
   grid-area: side;
   display: grid;
+  align-content: space-between;
   justify-items: end;
   align-self: stretch;
 }
@@ -672,7 +329,6 @@ progress {
   cursor: pointer;
 }
 
-.hud-capacity,
 .hud-reward-state {
   margin: 0;
   color: var(--color-muted);
@@ -696,7 +352,12 @@ progress {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.task-scroll-region::-webkit-scrollbar {
+  display: none;
 }
 
 .task-scroll-region:focus-visible {
@@ -721,19 +382,19 @@ progress {
 
 .todo-list {
   display: grid;
-  gap: 1px;
+  gap: 8px;
   margin: 0;
-  padding: 1px 0 0;
+  padding: 4px 0 2px;
   list-style: none;
 }
 
 .todo-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 52px;
+  min-height: 56px;
   padding: 4px 0;
-  background: var(--color-surface);
+  background: transparent;
   color: var(--color-text);
   font-size: 0.9375rem;
   font-weight: 450;
@@ -744,8 +405,8 @@ progress {
 .todo-status {
   display: grid;
   place-items: center;
-  width: 44px;
-  min-height: 44px;
+  width: 48px;
+  min-height: 48px;
   border: 0;
   border-right: 1px solid var(--color-border);
   padding: 0;
@@ -780,9 +441,9 @@ progress {
 
 .todo-text {
   min-width: 0;
-  min-height: 44px;
+  min-height: 48px;
   border: 0;
-  padding: 10px 8px;
+  padding: 12px 14px;
   background: transparent;
   color: inherit;
   line-height: inherit;
@@ -812,7 +473,7 @@ progress {
 }
 
 .todo-delete {
-  min-height: 44px;
+  min-height: 48px;
   border: 0;
   border-left: 1px solid var(--color-border);
   padding: 8px 12px;
@@ -821,6 +482,59 @@ progress {
   font-size: 0.75rem;
   font-weight: 650;
   cursor: pointer;
+}
+
+.todo-status:active,
+.todo-status:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.todo-row--standby .todo-status:active,
+.todo-row--standby .todo-status:focus-visible {
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+}
+
+.todo-row--completed .todo-status:active,
+.todo-row--completed .todo-status:focus-visible {
+  background: color-mix(in srgb, var(--color-status) 12%, transparent);
+}
+
+.todo-text:active,
+.todo-text:focus-visible {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+.todo-delete:active,
+.todo-delete:focus-visible {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.todo-status:focus-visible,
+.todo-text:focus-visible,
+.todo-delete:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .todo-status:hover {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
+
+  .todo-row--standby .todo-status:hover {
+    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  }
+
+  .todo-row--completed .todo-status:hover {
+    background: color-mix(in srgb, var(--color-status) 12%, transparent);
+  }
+
+  .todo-text:hover {
+    background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  }
+
+  .todo-delete:hover {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  }
 }
 
 .sr-only {
@@ -1180,34 +894,16 @@ progress {
 
 @media (max-width: 440px) {
   .hud {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     grid-template-areas:
-      "badge level"
-      "badge progress"
-      "side side";
+      "badge level side"
+      "badge progress side";
   }
 
   .badge-control,
   .rank-badge--compact {
     width: 44px;
     height: 44px;
-  }
-
-  .hud-side {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
-    justify-items: start;
-    gap: 12px;
-  }
-
-  .hud-capacity,
-  .hud-reward-state {
-    text-align: left;
-  }
-
-  .settings-trigger {
-    grid-column: 3;
-    grid-row: 1;
   }
 
   .progression-details {

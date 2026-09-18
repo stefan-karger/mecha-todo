@@ -41,7 +41,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <div class="progression-badge-slot">
                 <RankBadge
                   level={viewState.progression.level}
-                  rank={viewState.rank}
                   size="large"
                 />
               </div>

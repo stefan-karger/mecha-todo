@@ -12,7 +12,7 @@ if (!root) {
 
 const badgeRoute = window.location.pathname.replace(/\/$/, "") === "/badge";
 
-document.title = badgeRoute ? `Badge inspection bench | ${PRODUCT_NAME}` : PRODUCT_NAME;
+document.title = badgeRoute ? `Badge review | ${PRODUCT_NAME}` : PRODUCT_NAME;
 document.documentElement.classList.toggle("badge-route", badgeRoute);
 document.body.classList.toggle("badge-route", badgeRoute);
 render(() => (badgeRoute ? <BadgeShowcase /> : <App />), root);
